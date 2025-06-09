@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: linc-backend
+    env: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: linc-database
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: '["https://linc-frontend.vercel.app"]'
+      - key: FILE_STORAGE_BASE_PATH
+        value: /tmp/linc-data
+      - key: DEFAULT_COUNTRY_CODE
+        value: ZA
+      - key: SUPPORTED_COUNTRIES
+        value: '["ZA","KE","NG"]'
+
+databases:
+  - name: linc-database
+    databaseName: linc_production
+    user: linc_user
+    plan: starter 
