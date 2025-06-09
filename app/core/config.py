@@ -29,12 +29,31 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS Configuration
-    ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",  # React development server
-        "http://localhost:3001",
-        "https://linc-frontend.vercel.app"  # Production frontend
-    ]
-    ALLOWED_HOSTS: List[str] = ["*"]  # Restrict in production
+    ALLOWED_ORIGINS: str = "*"
+    ALLOWED_HOSTS: str = "*"
+    
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Convert ALLOWED_ORIGINS string to list"""
+        if self.ALLOWED_ORIGINS == "*":
+            return ["*"]
+        # Support comma-separated values or JSON array
+        try:
+            import json
+            return json.loads(self.ALLOWED_ORIGINS)
+        except:
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+    
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        """Convert ALLOWED_HOSTS string to list"""
+        if self.ALLOWED_HOSTS == "*":
+            return ["*"]
+        try:
+            import json
+            return json.loads(self.ALLOWED_HOSTS)
+        except:
+            return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
     
     # Database Configuration
     # Default PostgreSQL connection - will be overridden per country
@@ -57,8 +76,26 @@ class Settings(BaseSettings):
     # File Storage Configuration
     FILE_STORAGE_BASE_PATH: str = "/var/linc-data"
     MAX_FILE_SIZE_MB: int = 10
-    ALLOWED_IMAGE_TYPES: List[str] = ["image/jpeg", "image/png", "image/gif"]
-    ALLOWED_DOCUMENT_TYPES: List[str] = ["application/pdf", "image/jpeg", "image/png"]
+    ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/gif"
+    ALLOWED_DOCUMENT_TYPES: str = "application/pdf,image/jpeg,image/png"
+    
+    @property
+    def allowed_image_types_list(self) -> List[str]:
+        """Convert ALLOWED_IMAGE_TYPES string to list"""
+        try:
+            import json
+            return json.loads(self.ALLOWED_IMAGE_TYPES)
+        except:
+            return [mime_type.strip() for mime_type in self.ALLOWED_IMAGE_TYPES.split(",")]
+    
+    @property
+    def allowed_document_types_list(self) -> List[str]:
+        """Convert ALLOWED_DOCUMENT_TYPES string to list"""
+        try:
+            import json
+            return json.loads(self.ALLOWED_DOCUMENT_TYPES)
+        except:
+            return [mime_type.strip() for mime_type in self.ALLOWED_DOCUMENT_TYPES.split(",")]
     
     # Audit Configuration
     AUDIT_LOG_RETENTION_DAYS: int = 2555  # 7 years
@@ -67,7 +104,16 @@ class Settings(BaseSettings):
     
     # Country Configuration
     DEFAULT_COUNTRY_CODE: str = "ZA"
-    SUPPORTED_COUNTRIES: List[str] = ["ZA", "KE", "NG"]
+    SUPPORTED_COUNTRIES: str = "ZA,KE,NG"
+    
+    @property
+    def supported_countries_list(self) -> List[str]:
+        """Convert SUPPORTED_COUNTRIES string to list"""
+        try:
+            import json
+            return json.loads(self.SUPPORTED_COUNTRIES)
+        except:
+            return [country.strip() for country in self.SUPPORTED_COUNTRIES.split(",")]
     
     # External Integration Configuration
     ENABLE_MEDICAL_INTEGRATION: bool = False
