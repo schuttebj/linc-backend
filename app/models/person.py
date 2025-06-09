@@ -109,6 +109,9 @@ class Person(Base):
     legacy_id = Column(String(50), nullable=True, comment="Legacy system ID for migration")
     legacy_system = Column(String(50), nullable=True, comment="Source legacy system identifier")
     
+    # Relationships
+    license_applications = relationship("LicenseApplication", back_populates="person")
+    
     def __repr__(self):
         return f"<Person(id={self.id}, id_number='{self.id_number}', name='{self.first_name} {self.surname}', status='{self.validation_status}')>"
     
