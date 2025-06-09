@@ -212,4 +212,9 @@ COUNTRY_CONFIGS = {
 
 
 # Create settings instance
-settings = Settings() 
+settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Get application settings instance"""
+    return settings 
