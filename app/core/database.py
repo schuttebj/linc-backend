@@ -49,7 +49,7 @@ def initialize_databases():
     global engines, SessionLocals
     
     # Create engines for each country
-    for country_code in settings.SUPPORTED_COUNTRIES:
+    for country_code in settings.supported_countries_list:
         database_url = settings.get_database_url(country_code)
         
         try:
@@ -167,7 +167,7 @@ class DatabaseManager:
     @staticmethod
     def create_all_tables():
         """Create tables for all countries"""
-        for country_code in settings.SUPPORTED_COUNTRIES:
+        for country_code in settings.supported_countries_list:
             DatabaseManager.create_tables_for_country(country_code)
     
     @staticmethod
