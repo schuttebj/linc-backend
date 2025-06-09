@@ -41,11 +41,18 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/linc_default"
     
     # Multi-tenant database URLs (country-specific)
-    COUNTRY_DATABASES: Dict[str, str] = {
-        "ZA": "postgresql://postgres:password@localhost:5432/linc_south_africa",
-        "KE": "postgresql://postgres:password@localhost:5432/linc_kenya",
-        "NG": "postgresql://postgres:password@localhost:5432/linc_nigeria",
-    }
+    DATABASE_URL_ZA: str = "postgresql://postgres:password@localhost:5432/linc_south_africa"
+    DATABASE_URL_KE: str = "postgresql://postgres:password@localhost:5432/linc_kenya"
+    DATABASE_URL_NG: str = "postgresql://postgres:password@localhost:5432/linc_nigeria"
+    
+    @property
+    def COUNTRY_DATABASES(self) -> Dict[str, str]:
+        """Get country databases from environment variables"""
+        return {
+            "ZA": self.DATABASE_URL_ZA,
+            "KE": self.DATABASE_URL_KE,
+            "NG": self.DATABASE_URL_NG,
+        }
     
     # File Storage Configuration
     FILE_STORAGE_BASE_PATH: str = "/var/linc-data"
