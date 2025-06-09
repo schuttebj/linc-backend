@@ -122,7 +122,7 @@ class LicenseApplication(BaseModel):
     updated_by = Column(UUID(as_uuid=True), nullable=False)
     
     # Relationships
-    person = relationship("PersonModel", back_populates="license_applications")
+    person = relationship("Person", back_populates="license_applications")
     license_cards = relationship("LicenseCard", back_populates="application")
     payments = relationship("ApplicationPayment", back_populates="application")
 
@@ -183,7 +183,7 @@ class LicenseCard(BaseModel):
     
     # Relationships
     application = relationship("LicenseApplication", back_populates="license_cards")
-    person = relationship("PersonModel")
+    person = relationship("Person")
 
 
 class ApplicationPayment(BaseModel):
