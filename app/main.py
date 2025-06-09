@@ -83,6 +83,19 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint - API information"""
+    return {
+        "service": "LINC Driver's Licensing System",
+        "version": "1.0.0",
+        "status": "operational",
+        "api_docs": f"{settings.API_V1_STR}/docs",
+        "health_check": "/health",
+        "timestamp": time.time()
+    }
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
