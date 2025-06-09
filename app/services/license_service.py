@@ -13,7 +13,7 @@ from ..models.license import (
     ApplicationStatus,
     LicenseType
 )
-from ..models.person import PersonModel
+from ..models.person import Person
 from ..schemas.license import (
     LicenseApplicationCreate,
     LicenseApplicationUpdate,
@@ -230,7 +230,7 @@ class LicenseApplicationService:
             medical_requirements_met=medical_requirements_met
         )
     
-    def _check_age_eligibility(self, person: PersonModel, license_type: LicenseType) -> Tuple[bool, Dict]:
+    def _check_age_eligibility(self, person: Person, license_type: LicenseType) -> Tuple[bool, Dict]:
         """
         Check age eligibility based on license type
         Business Rule: R-APP-003
@@ -336,7 +336,7 @@ class LicenseApplicationService:
     
     def _check_medical_requirements(
         self, 
-        person: PersonModel, 
+        person: Person, 
         license_type: LicenseType,
         medical_cert_date: Optional[date]
     ) -> Tuple[bool, Dict]:
