@@ -55,23 +55,8 @@ class Settings(BaseSettings):
         except:
             return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
     
-    # Database Configuration
-    # Default PostgreSQL connection - will be overridden per country
-    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/linc_default"
-    
-    # Multi-tenant database URLs (country-specific)
-    DATABASE_URL_ZA: str = "postgresql://postgres:password@localhost:5432/linc_south_africa"
-    DATABASE_URL_KE: str = "postgresql://postgres:password@localhost:5432/linc_kenya"
-    DATABASE_URL_NG: str = "postgresql://postgres:password@localhost:5432/linc_nigeria"
-    
-    @property
-    def COUNTRY_DATABASES(self) -> Dict[str, str]:
-        """Get country databases from environment variables"""
-        return {
-            "ZA": self.DATABASE_URL_ZA,
-            "KE": self.DATABASE_URL_KE,
-            "NG": self.DATABASE_URL_NG,
-        }
+    # Database Configuration (Single Country)
+    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/linc_database"
     
     # File Storage Configuration
     FILE_STORAGE_BASE_PATH: str = "/var/linc-data"
@@ -102,18 +87,10 @@ class Settings(BaseSettings):
     ENABLE_FILE_AUDIT_LOGS: bool = True
     ENABLE_PERFORMANCE_MONITORING: bool = True
     
-    # Country Configuration
-    DEFAULT_COUNTRY_CODE: str = "ZA"
-    SUPPORTED_COUNTRIES: str = "ZA,KE,NG"
-    
-    @property
-    def supported_countries_list(self) -> List[str]:
-        """Convert SUPPORTED_COUNTRIES string to list"""
-        try:
-            import json
-            return json.loads(self.SUPPORTED_COUNTRIES)
-        except:
-            return [country.strip() for country in self.SUPPORTED_COUNTRIES.split(",")]
+    # Country Configuration (Single Country per Deployment)
+    COUNTRY_CODE: str = "ZA"
+    COUNTRY_NAME: str = "South Africa"
+    CURRENCY: str = "ZAR"
     
     # External Integration Configuration
     ENABLE_MEDICAL_INTEGRATION: bool = False
@@ -128,18 +105,9 @@ class Settings(BaseSettings):
     CARD_PRODUCTION_MODE: str = "local"  # "local" or "centralized"
     ISO_18013_COMPLIANCE: bool = True
     
-    @property
-    def database_url_for_country(self) -> str:
-        """Get database URL for default country"""
-        return self.COUNTRY_DATABASES.get(self.DEFAULT_COUNTRY_CODE, self.DATABASE_URL)
-    
-    def get_database_url(self, country_code: str) -> str:
-        """Get database URL for specific country"""
-        return self.COUNTRY_DATABASES.get(country_code.upper(), self.DATABASE_URL)
-    
-    def get_file_storage_path(self, country_code: str) -> Path:
-        """Get file storage path for specific country"""
-        return Path(self.FILE_STORAGE_BASE_PATH) / country_code.upper()
+    def get_file_storage_path(self) -> Path:
+        """Get file storage path for this deployment's country"""
+        return Path(self.FILE_STORAGE_BASE_PATH) / self.COUNTRY_CODE
 
 
 class CountryConfig(BaseSettings):

@@ -3,184 +3,177 @@ Person Database Model
 Implements Person entity from Section 1.1 Person Registration/Search Screen
 """
 
-from sqlalchemy import Column, String, Date, DateTime, Index, CheckConstraint
+from sqlalchemy import Column, Integer, String, Date, DateTime, Text, Boolean, Index, CheckConstraint, Enum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from typing import Optional
 import uuid
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.sql import func
+from enum import Enum as PythonEnum
 
 from app.models.base import BaseModel
+from app.models.enums import ValidationStatus, Gender, AddressType
 
+Base = declarative_base()
 
-class Person(BaseModel):
+class Person(Base):
     """
-    Person entity model
+    Person entity representing individuals in the system.
     
-    Implements Person entity from specification Section 1.1
-    Source: Section 1.1 Person Registration/Search Screen
-    Legacy References: NATPER, PER tables
+    Uses hybrid approach based on refactored documentation analysis:
+    - Universal fields (gender, validation status, address types) use enums
+    - Country-specific fields (ID types, nationalities, languages) use strings with country config validation
     """
+    __tablename__ = "persons"
     
-    # Core Identity Fields (V00001-V00019)
-    identification_type = Column(String(3), nullable=False, index=True)  # V00001: Mandatory
-    identification_number = Column(String(13), nullable=False, index=True)  # V00013: Mandatory
-    first_name = Column(String(32), nullable=False)  # NATPER.FULLNAME1
-    middle_name = Column(String(32), nullable=True)  # NATPER.FULLNAME2
-    surname = Column(String(32), nullable=False)  # PER.BUSORSURNAME
-    initials = Column(String(3), nullable=True)  # PER.INITIALS
-    date_of_birth = Column(Date, nullable=False, index=True)  # NATPER.BIRTHD
-    gender = Column(String(2), nullable=False)  # PER.NATOFPER - V00485: Must be natural person
-    nationality = Column(String(2), nullable=False)  # PER.NATNPOPGRPCD
-    language_preference = Column(String(2), nullable=True)  # NATPER.PREFLANGCD
+    # Primary identification
+    id = Column(Integer, primary_key=True, index=True)
     
-    # Contact Information Fields
-    email_address = Column(String(50), nullable=True)  # NATPER.EMAILADDR
-    home_phone_code = Column(String(10), nullable=True)  # NATPER.HTELCD
-    home_phone_number = Column(String(10), nullable=True)  # NATPER.HTELN
-    work_phone_code = Column(String(10), nullable=True)  # NATPER.WTELCD
-    work_phone_number = Column(String(15), nullable=True)  # NATPER.WTELN
-    cell_phone = Column(String(15), nullable=True)  # NATPER.CELLN
-    fax_code = Column(String(10), nullable=True)  # NATPER.FAXCD
-    fax_number = Column(String(10), nullable=True)  # NATPER.FAXN
+    # Identity Information - Country-specific (strings with config validation)
+    # Based on Screen Field Specifications: ID types vary significantly by country
+    id_type = Column(String(10), nullable=False, comment="Country-specific ID document type (RSA_ID, NATIONAL_ID, etc.)")
+    id_number = Column(String(50), nullable=False, unique=True, comment="ID document number with country-specific validation")
     
-    # Additional audit and tracking fields
-    alias_check_date = Column(DateTime, nullable=True)  # V00016: Unacceptable alias check
-    last_validation_date = Column(DateTime, nullable=True)  # Last business rule validation
-    validation_status = Column(String(20), default='pending', nullable=False)  # pending, valid, invalid
+    # Personal Information
+    # Universal fields use enums for consistency
+    first_name = Column(String(100), nullable=False, comment="Given name(s)")
+    middle_name = Column(String(100), nullable=True, comment="Middle name(s)")
+    surname = Column(String(100), nullable=False, comment="Family name/surname")
+    initials = Column(String(10), nullable=True, comment="Name initials")
     
-    # Define table constraints
-    __table_args__ = (
-        # Unique constraint on identification within country
-        Index('ix_person_unique_id', 'country_code', 'identification_type', 'identification_number', unique=True),
-        
-        # Composite index for search performance
-        Index('ix_person_search', 'country_code', 'surname', 'first_name', 'date_of_birth'),
-        
-        # Check constraints for data integrity
-        CheckConstraint(
-            "identification_type IN ('01', '02', '03', '04', '97')", 
-            name='ck_person_id_type'
-        ),
-        CheckConstraint(
-            "gender IN ('01', '02')", 
-            name='ck_person_gender'
-        ),
-        CheckConstraint(
-            "nationality IN ('01', '02')", 
-            name='ck_person_nationality'
-        ),
-        CheckConstraint(
-            "validation_status IN ('pending', 'valid', 'invalid', 'expired')", 
-            name='ck_person_validation_status'
-        ),
-        
-        # Data integrity constraints
-        CheckConstraint(
-            "length(identification_number) <= 13", 
-            name='ck_person_id_length'
-        ),
-        CheckConstraint(
-            "date_of_birth <= CURRENT_DATE", 
-            name='ck_person_birth_date'
-        ),
-    )
+    # Date of birth for age calculations and eligibility
+    date_of_birth = Column(Date, nullable=True, comment="Birth date for age verification")
+    
+    # Universal gender codes (consistent across countries)
+    gender = Column(Enum(Gender), nullable=False, comment="Gender using universal codes")
+    
+    # Country-specific fields (strings with config validation)
+    # Based on documentation: these vary significantly by country
+    nationality = Column(String(10), nullable=True, comment="Country-specific nationality code")
+    language_preference = Column(String(10), nullable=True, comment="Country-specific language code")
+    
+    # Contact Information
+    email = Column(String(255), nullable=True, comment="Email address")
+    phone_home = Column(String(20), nullable=True, comment="Home phone number")
+    phone_work = Column(String(20), nullable=True, comment="Work phone number")
+    phone_mobile = Column(String(20), nullable=True, comment="Mobile phone number")
+    fax = Column(String(20), nullable=True, comment="Fax number")
+    
+    # Address Information
+    # Universal address types with country-specific address formats
+    residential_address_line_1 = Column(String(100), nullable=True)
+    residential_address_line_2 = Column(String(100), nullable=True)
+    residential_address_line_3 = Column(String(100), nullable=True)
+    residential_address_line_4 = Column(String(100), nullable=True)
+    residential_address_line_5 = Column(String(100), nullable=True)
+    residential_postal_code = Column(String(10), nullable=True)
+    residential_city = Column(String(100), nullable=True)
+    residential_province = Column(String(100), nullable=True)
+    residential_country = Column(String(100), nullable=True)
+    
+    postal_address_line_1 = Column(String(100), nullable=True)
+    postal_address_line_2 = Column(String(100), nullable=True)
+    postal_address_line_3 = Column(String(100), nullable=True)
+    postal_address_line_4 = Column(String(100), nullable=True)
+    postal_address_line_5 = Column(String(100), nullable=True)
+    postal_postal_code = Column(String(10), nullable=True)
+    postal_city = Column(String(100), nullable=True)
+    postal_province = Column(String(100), nullable=True)
+    postal_country = Column(String(100), nullable=True)
+    
+    # System Status and Validation
+    # Universal validation status using enum
+    validation_status = Column(Enum(ValidationStatus), nullable=False, default=ValidationStatus.PENDING, 
+                             comment="Person validation status")
+    validation_date = Column(DateTime, nullable=True, comment="Date when validation was completed")
+    validation_notes = Column(Text, nullable=True, comment="Validation notes and comments")
+    
+    # Administrative flags
+    is_active = Column(Boolean, nullable=False, default=True, comment="Active status flag")
+    has_restrictions = Column(Boolean, nullable=False, default=False, comment="Administrative restrictions flag")
+    restriction_notes = Column(Text, nullable=True, comment="Details of any restrictions")
+    
+    # Country and Jurisdiction
+    # Based on single-country deployment model
+    country_code = Column(String(3), nullable=False, comment="ISO country code for this deployment")
+    jurisdiction = Column(String(100), nullable=True, comment="Local jurisdiction/authority")
+    
+    # Audit fields
+    created_at = Column(DateTime, nullable=False, default=func.now(), comment="Record creation timestamp")
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now(), comment="Last update timestamp")
+    created_by = Column(String(100), nullable=True, comment="User who created the record")
+    updated_by = Column(String(100), nullable=True, comment="User who last updated the record")
+    
+    # Legacy integration fields (for transition period)
+    legacy_id = Column(String(50), nullable=True, comment="Legacy system ID for migration")
+    legacy_system = Column(String(50), nullable=True, comment="Source legacy system identifier")
     
     def __repr__(self):
-        return f"<Person(id={self.id}, id_number={self.identification_number}, name={self.first_name} {self.surname})>"
+        return f"<Person(id={self.id}, id_number='{self.id_number}', name='{self.first_name} {self.surname}', status='{self.validation_status}')>"
     
     @property
     def full_name(self) -> str:
-        """Get full name"""
-        names = [self.first_name]
+        """Get formatted full name"""
+        parts = [self.first_name]
         if self.middle_name:
-            names.append(self.middle_name)
-        names.append(self.surname)
-        return " ".join(names)
+            parts.append(self.middle_name)
+        parts.append(self.surname)
+        return " ".join(parts)
     
     @property
     def display_name(self) -> str:
-        """Get display name with initials"""
+        """Get display name (surname, initials)"""
         if self.initials:
-            return f"{self.initials} {self.surname}"
-        return f"{self.first_name} {self.surname}"
+            return f"{self.surname}, {self.initials}"
+        return f"{self.surname}, {self.first_name[0] if self.first_name else ''}"
     
-    def validate_identification_number(self) -> list:
-        """
-        Validate identification number based on business rules
-        Implements V00013, V00017, V00018, V00019
-        """
-        validation_errors = []
-        
-        # V00013: Identification Number Mandatory
-        if not self.identification_number:
-            validation_errors.append({
-                'code': 'V00013',
-                'message': 'Identification number is mandatory'
-            })
-            return validation_errors
-        
-        # V00018: ID Number Length Validation
-        if self.identification_type in ['01', '02', '04', '97']:
-            if len(self.identification_number) != 13:
-                validation_errors.append({
-                    'code': 'V00018',
-                    'message': 'Identification number must be 13 characters for this type'
-                })
-        
-        # V00017: Numeric Validation for SA ID
-        if self.identification_type == '02':  # RSA ID
-            if not self.identification_number.isdigit():
-                validation_errors.append({
-                    'code': 'V00017',
-                    'message': 'RSA ID number must be numeric'
-                })
-        
-        # V00019: Check Digit Validation (simplified)
-        if self.identification_type == '02' and len(self.identification_number) == 13:
-            # Implement Luhn algorithm for RSA ID validation
-            if not self._validate_rsa_id_checksum():
-                validation_errors.append({
-                    'code': 'V00019',
-                    'message': 'Invalid RSA ID number check digit'
-                })
-        
-        return validation_errors
-    
-    def _validate_rsa_id_checksum(self) -> bool:
-        """
-        Validate RSA ID checksum using simplified algorithm
-        Note: This is a simplified version. Full implementation would use 
-        the official RSA ID validation algorithm
-        """
-        if len(self.identification_number) != 13 or not self.identification_number.isdigit():
-            return False
-        
-        # Simplified checksum validation - replace with official algorithm
-        digits = [int(d) for d in self.identification_number]
-        checksum = sum(digits[:-1]) % 10
-        return checksum == digits[-1]
-    
-    def get_age(self) -> int:
-        """Calculate current age"""
-        from datetime import date
-        today = date.today()
-        return today.year - self.date_of_birth.year - (
-            (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
+    @property
+    def has_valid_residential_address(self) -> bool:
+        """Check if residential address is complete"""
+        return bool(
+            self.residential_address_line_1 
+            and self.residential_postal_code 
+            and self.residential_city
         )
     
-    def is_eligible_for_license_type(self, license_type: str) -> bool:
-        """Check if person meets age requirements for license type"""
-        age_requirements = {
-            'A': 16,    # Motorcycle
-            'B': 18,    # Light vehicle
-            'C': 21,    # Heavy vehicle
-            'D': 24,    # Bus/taxi
-            'EB': 18,   # Light vehicle with trailer
-            'EC': 21    # Heavy vehicle with trailer
-        }
-        
-        required_age = age_requirements.get(license_type, 18)
-        return self.get_age() >= required_age
+    @property
+    def has_valid_postal_address(self) -> bool:
+        """Check if postal address is complete"""
+        return bool(
+            self.postal_address_line_1 
+            and self.postal_postal_code
+        )
+    
+    def get_primary_address(self) -> dict:
+        """Get primary address for correspondence"""
+        if self.has_valid_postal_address:
+            return {
+                "type": "postal",
+                "line_1": self.postal_address_line_1,
+                "line_2": self.postal_address_line_2,
+                "line_3": self.postal_address_line_3,
+                "line_4": self.postal_address_line_4,
+                "line_5": self.postal_address_line_5,
+                "postal_code": self.postal_postal_code,
+                "city": self.postal_city,
+                "province": self.postal_province,
+                "country": self.postal_country,
+            }
+        elif self.has_valid_residential_address:
+            return {
+                "type": "residential",
+                "line_1": self.residential_address_line_1,
+                "line_2": self.residential_address_line_2,
+                "line_3": self.residential_address_line_3,
+                "line_4": self.residential_address_line_4,
+                "line_5": self.residential_address_line_5,
+                "postal_code": self.residential_postal_code,
+                "city": self.residential_city,
+                "province": self.residential_province,
+                "country": self.residential_country,
+            }
+        return None
 
 
 class PersonAddress(BaseModel):
@@ -196,7 +189,7 @@ class PersonAddress(BaseModel):
     person_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     
     # Address type
-    address_type = Column(String(20), nullable=False)  # 'residential' or 'postal'
+    address_type = Column(Enum(AddressType), nullable=False)
     
     # Street address fields
     street_address_line_1 = Column(String(35), nullable=True)  # PER.STREETADDR1
@@ -226,10 +219,6 @@ class PersonAddress(BaseModel):
         
         # Check constraints
         CheckConstraint(
-            "address_type IN ('residential', 'postal')", 
-            name='ck_address_type'
-        ),
-        CheckConstraint(
             "length(street_postal_code) = 4 OR street_postal_code IS NULL", 
             name='ck_street_postal_code_length'
         ),
@@ -241,3 +230,42 @@ class PersonAddress(BaseModel):
     
     def __repr__(self):
         return f"<PersonAddress(person_id={self.person_id}, type={self.address_type})>" 
+
+# Country-specific configuration validation will be handled in:
+# - app/core/country_config.py: Country-specific field validation
+# - app/services/validation.py: Business rule validation
+# - app/schemas/person.py: API input validation
+
+"""
+Country Configuration Examples (will be implemented separately):
+
+SOUTH_AFRICA_CONFIG = {
+    "id_types": ["RSA_ID", "RSA_PASSPORT", "TEMPORARY_ID", "ASYLUM_PERMIT"],
+    "nationalities": ["ZA", "Foreign"],
+    "languages": ["EN", "AF", "ZU", "XH", "ST", "TN", "SS", "VE", "TS", "NR", "ND"],
+    "validation_rules": {
+        "RSA_ID": {"length": 13, "numeric": True, "check_digit": True},
+        "RSA_PASSPORT": {"length": 9, "alphanumeric": True}
+    }
+}
+
+KENYA_CONFIG = {
+    "id_types": ["NATIONAL_ID", "PASSPORT", "REFUGEE_ID", "ALIEN_ID"],
+    "nationalities": ["KE", "Foreign"],
+    "languages": ["EN", "SW", "KI", "LU", "KA", "ME", "GU", "KU", "MA", "TU"],
+    "validation_rules": {
+        "NATIONAL_ID": {"length": 8, "numeric": True},
+        "PASSPORT": {"length": 9, "alphanumeric": True}
+    }
+}
+
+NIGERIA_CONFIG = {
+    "id_types": ["NATIONAL_ID", "VOTERS_CARD", "DRIVERS_LICENSE", "PASSPORT"],
+    "nationalities": ["NG", "Foreign"],
+    "languages": ["EN", "HA", "IG", "YO", "FU", "IJ", "KA", "TI", "UR", "BI"],
+    "validation_rules": {
+        "NATIONAL_ID": {"length": 11, "numeric": True},
+        "VOTERS_CARD": {"length": 19, "alphanumeric": True}
+    }
+}
+""" 

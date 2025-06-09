@@ -12,6 +12,7 @@ import structlog
 
 from app.schemas.person import PersonCreateRequest, ValidationResult
 from app.models.person import Person
+from app.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -19,9 +20,8 @@ logger = structlog.get_logger()
 class ValidationService:
     """Service class for business rule validation"""
     
-    def __init__(self, db: Session, country_code: str):
+    def __init__(self, db: Session):
         self.db = db
-        self.country_code = country_code.upper()
     
     async def validate_person_creation(self, person_data: PersonCreateRequest) -> List[ValidationResult]:
         """
@@ -205,7 +205,7 @@ class ValidationService:
             )
         
         # South African ID number validation
-        if identification_type == "RSA_ID" and self.country_code == "ZA":
+        if identification_type == "RSA_ID" and settings.COUNTRY_CODE == "ZA":
             if not re.match(r'^\d{13}$', identification_number):
                 return ValidationResult(
                     code="V00006",

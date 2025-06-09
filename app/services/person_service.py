@@ -12,6 +12,7 @@ import structlog
 from app.models.person import Person, PersonAddress
 from app.schemas.person import PersonCreateRequest, PersonSearchRequest
 from app.core.database import get_db_context
+from app.core.config import settings
 
 logger = structlog.get_logger()
 
@@ -19,9 +20,8 @@ logger = structlog.get_logger()
 class PersonService:
     """Service class for person-related business operations"""
     
-    def __init__(self, db: Session, country_code: str):
+    def __init__(self, db: Session):
         self.db = db
-        self.country_code = country_code.upper()
     
     async def create_person(self, person_data: PersonCreateRequest) -> Person:
         """Create a new person record"""
@@ -38,7 +38,7 @@ class PersonService:
                 nationality=person_data.nationality,
                 email_address=person_data.email_address,
                 phone_number=person_data.phone_number,
-                country_code=self.country_code
+                country_code=settings.COUNTRY_CODE
             )
             
             self.db.add(person)
@@ -54,7 +54,7 @@ class PersonService:
                     city=person_data.address.city,
                     province=person_data.address.province,
                     postal_code=person_data.address.postal_code,
-                    country_code=self.country_code
+                    country_code=settings.COUNTRY_CODE
                 )
                 self.db.add(address)
             
@@ -74,7 +74,7 @@ class PersonService:
             return self.db.query(Person).filter(
                 and_(
                     Person.id == person_id,
-                    Person.country_code == self.country_code,
+                    Person.country_code == settings.COUNTRY_CODE,
                     Person.is_deleted == False
                 )
             ).first()
@@ -93,7 +93,7 @@ class PersonService:
                 and_(
                     Person.identification_type == identification_type,
                     Person.identification_number == identification_number,
-                    Person.country_code == self.country_code,
+                    Person.country_code == settings.COUNTRY_CODE,
                     Person.is_deleted == False
                 )
             ).first()
@@ -111,7 +111,7 @@ class PersonService:
         try:
             query = self.db.query(Person).filter(
                 and_(
-                    Person.country_code == self.country_code,
+                    Person.country_code == settings.COUNTRY_CODE,
                     Person.is_deleted == False
                 )
             )

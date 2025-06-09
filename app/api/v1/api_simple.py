@@ -1,6 +1,6 @@
 """
-LINC API v1 Router
-Single-country deployment with simplified routing
+LINC API v1 Router - Simplified Single-Country Version
+Single-country deployment without multi-tenant routing complexity
 """
 
 from fastapi import APIRouter
@@ -18,11 +18,11 @@ api_router.include_router(
 # Country configuration endpoints
 api_router.include_router(
     countries.router,
-    prefix="/countries",
+    prefix="/countries", 
     tags=["countries"]
 )
 
-# Core business endpoints (single country, no country prefix)
+# Core business endpoints (no country prefix needed)
 api_router.include_router(
     persons.router,
     prefix="/persons",

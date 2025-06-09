@@ -18,10 +18,12 @@ services:
         value: '["https://linc-frontend.vercel.app"]'
       - key: FILE_STORAGE_BASE_PATH
         value: /tmp/linc-data
-      - key: DEFAULT_COUNTRY_CODE
+      - key: COUNTRY_CODE
         value: ZA
-      - key: SUPPORTED_COUNTRIES
-        value: '["ZA","KE","NG"]'
+      - key: COUNTRY_NAME
+        value: South Africa
+      - key: CURRENCY
+        value: ZAR
 
 databases:
   - name: linc-database

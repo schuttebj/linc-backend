@@ -1,14 +1,13 @@
 """
-Health Check Endpoints
+Health Check Endpoints - Simplified Single Country
 System health, database connectivity, and status monitoring
 """
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 import time
 from typing import Dict, Any
 
-from app.core.database import get_db, DatabaseManager
+from app.core.database import DatabaseManager
 from app.core.config import settings
 
 router = APIRouter()
@@ -21,6 +20,7 @@ async def health_check() -> Dict[str, Any]:
         "status": "healthy",
         "service": "LINC Backend",
         "version": settings.VERSION,
+        "country": settings.COUNTRY_CODE,
         "timestamp": time.time()
     }
 
@@ -32,89 +32,75 @@ async def detailed_health_check() -> Dict[str, Any]:
         "status": "healthy",
         "service": "LINC Backend",
         "version": settings.VERSION,
+        "country": settings.COUNTRY_CODE,
         "timestamp": time.time(),
-        "database_connections": {},
+        "database": {},
         "file_storage": {},
         "configuration": {
-            "supported_countries": settings.SUPPORTED_COUNTRIES,
-            "default_country": settings.DEFAULT_COUNTRY_CODE
+            "country_code": settings.COUNTRY_CODE,
+            "country_name": settings.COUNTRY_NAME,
+            "currency": settings.CURRENCY
         }
     }
     
-    # Test database connections for all countries
-    for country_code in settings.SUPPORTED_COUNTRIES:
-        try:
-            connection_status = DatabaseManager.test_connection(country_code)
-            health_status["database_connections"][country_code] = {
-                "status": "connected" if connection_status else "failed",
-                "tested_at": time.time()
-            }
-        except Exception as e:
-            health_status["database_connections"][country_code] = {
-                "status": "error",
-                "error": str(e),
-                "tested_at": time.time()
-            }
+    # Test database connection
+    try:
+        connection_status = DatabaseManager.test_connection()
+        health_status["database"] = {
+            "status": "connected" if connection_status else "failed",
+            "tested_at": time.time()
+        }
+    except Exception as e:
+        health_status["database"] = {
+            "status": "error",
+            "error": str(e),
+            "tested_at": time.time()
+        }
     
     # Test file storage accessibility
-    for country_code in settings.SUPPORTED_COUNTRIES:
-        try:
-            storage_path = settings.get_file_storage_path(country_code)
-            storage_accessible = storage_path.exists()
-            health_status["file_storage"][country_code] = {
-                "status": "accessible" if storage_accessible else "not_found",
-                "path": str(storage_path),
-                "tested_at": time.time()
-            }
-        except Exception as e:
-            health_status["file_storage"][country_code] = {
-                "status": "error",
-                "error": str(e),
-                "tested_at": time.time()
-            }
+    try:
+        storage_path = settings.get_file_storage_path()
+        storage_accessible = storage_path.exists()
+        health_status["file_storage"] = {
+            "status": "accessible" if storage_accessible else "not_found",
+            "path": str(storage_path),
+            "tested_at": time.time()
+        }
+    except Exception as e:
+        health_status["file_storage"] = {
+            "status": "error",
+            "error": str(e),
+            "tested_at": time.time()
+        }
     
     # Determine overall health status
-    db_issues = [
-        country for country, status in health_status["database_connections"].items()
-        if status["status"] != "connected"
-    ]
-    
-    storage_issues = [
-        country for country, status in health_status["file_storage"].items()
-        if status["status"] != "accessible"
-    ]
-    
-    if db_issues or storage_issues:
+    if (health_status["database"]["status"] != "connected" or 
+        health_status["file_storage"]["status"] != "accessible"):
         health_status["status"] = "degraded"
-        health_status["issues"] = {
-            "database_issues": db_issues,
-            "storage_issues": storage_issues
-        }
+        health_status["issues"] = []
+        
+        if health_status["database"]["status"] != "connected":
+            health_status["issues"].append("database_connection")
+        
+        if health_status["file_storage"]["status"] != "accessible":
+            health_status["issues"].append("file_storage")
     
     return health_status
 
 
-@router.get("/database/{country}")
-async def test_database_connection(country: str) -> Dict[str, Any]:
-    """Test database connection for specific country"""
-    country_code = country.upper()
-    
-    if country_code not in settings.SUPPORTED_COUNTRIES:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Country {country_code} not supported"
-        )
-    
+@router.get("/database")
+async def test_database_connection() -> Dict[str, Any]:
+    """Test database connection"""
     try:
-        connection_status = DatabaseManager.test_connection(country_code)
+        connection_status = DatabaseManager.test_connection()
         return {
-            "country": country_code,
+            "country": settings.COUNTRY_CODE,
             "database_status": "connected" if connection_status else "failed",
             "tested_at": time.time()
         }
     except Exception as e:
         return {
-            "country": country_code,
+            "country": settings.COUNTRY_CODE,
             "database_status": "error",
             "error": str(e),
             "tested_at": time.time()

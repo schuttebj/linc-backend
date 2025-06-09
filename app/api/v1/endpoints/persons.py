@@ -1,15 +1,13 @@
 """
-Person Management Endpoints
-CRUD operations for person registration, search, and management
-Reference: Section 1.1 Person Registration/Search Screen
+Person Management Endpoints - Simplified Single Country
+RESTful endpoints for person CRUD operations and business logic
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from typing import List, Optional
+from typing import Optional, List
+from datetime import date
 import structlog
-from datetime import date, datetime
 
 from app.core.database import get_db
 from app.schemas.person import (
@@ -19,6 +17,7 @@ from app.schemas.person import (
 from app.models.person import Person, PersonAddress
 from app.services.person_service import PersonService
 from app.services.validation_service import ValidationService
+from app.core.config import settings
 
 router = APIRouter()
 logger = structlog.get_logger()
@@ -26,8 +25,7 @@ logger = structlog.get_logger()
 
 @router.post("/", response_model=PersonResponse, status_code=status.HTTP_201_CREATED)
 async def create_person(
-    country: str = Path(..., description="Country code"),
-    person_data: PersonCreateRequest = ...,
+    person_data: PersonCreateRequest,
     db: Session = Depends(get_db)
 ) -> PersonResponse:
     """
@@ -36,11 +34,9 @@ async def create_person(
     Implements Section 1.1 Person Registration/Search Screen
     Applies business rules V00001-V00019, V00485, V00585
     """
-    country_code = country.upper()
-    
     # Initialize services
-    person_service = PersonService(db, country_code)
-    validation_service = ValidationService(db, country_code)
+    person_service = PersonService(db)
+    validation_service = ValidationService(db)
     
     try:
         # Validate business rules
@@ -52,7 +48,7 @@ async def create_person(
             logger.warning(
                 "Person creation validation failed",
                 validation_errors=[r.dict() for r in failed_validations],
-                country=country_code
+                country=settings.COUNTRY_CODE
             )
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -73,7 +69,7 @@ async def create_person(
                 "Attempt to create duplicate person",
                 existing_person_id=str(existing_person.id),
                 identification_number=person_data.identification_number,
-                country=country_code
+                country=settings.COUNTRY_CODE
             )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -92,7 +88,7 @@ async def create_person(
             person_id=str(person.id),
             identification_number=person.identification_number,
             name=person.full_name,
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
         return PersonResponse.from_orm(person)
@@ -103,7 +99,7 @@ async def create_person(
         logger.error(
             "Error creating person",
             error=str(e),
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
@@ -114,7 +110,6 @@ async def create_person(
 
 @router.get("/search", response_model=PersonListResponse)
 async def search_persons(
-    country: str = Path(..., description="Country code"),
     identification_type: Optional[str] = Query(None, description="Identification document type"),
     identification_number: Optional[str] = Query(None, description="Identification number"),
     first_name: Optional[str] = Query(None, description="First name"),
@@ -129,10 +124,8 @@ async def search_persons(
     
     Implements person search functionality from Section 1.1
     """
-    country_code = country.upper()
-    
     try:
-        person_service = PersonService(db, country_code)
+        person_service = PersonService(db)
         
         # Build search criteria
         search_request = PersonSearchRequest(
@@ -153,7 +146,7 @@ async def search_persons(
             search_criteria=search_request.dict(exclude_none=True),
             results_count=len(persons),
             total_count=total_count,
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
         return PersonListResponse(
@@ -167,7 +160,7 @@ async def search_persons(
         logger.error(
             "Error searching persons",
             error=str(e),
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
@@ -178,15 +171,12 @@ async def search_persons(
 
 @router.get("/{person_id}", response_model=PersonResponse)
 async def get_person(
-    country: str = Path(..., description="Country code"),
     person_id: str = Path(..., description="Person UUID"),
     db: Session = Depends(get_db)
 ) -> PersonResponse:
     """Get person by ID"""
-    country_code = country.upper()
-    
     try:
-        person_service = PersonService(db, country_code)
+        person_service = PersonService(db)
         person = await person_service.get_by_id(person_id)
         
         if not person:
@@ -198,7 +188,7 @@ async def get_person(
         logger.info(
             "Person retrieved",
             person_id=person_id,
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
         return PersonResponse.from_orm(person)
@@ -210,7 +200,7 @@ async def get_person(
             "Error retrieving person",
             error=str(e),
             person_id=person_id,
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
@@ -221,17 +211,14 @@ async def get_person(
 
 @router.put("/{person_id}", response_model=PersonResponse)
 async def update_person(
-    country: str = Path(..., description="Country code"),
+    person_data: PersonCreateRequest,
     person_id: str = Path(..., description="Person UUID"),
-    person_data: PersonCreateRequest = ...,
     db: Session = Depends(get_db)
 ) -> PersonResponse:
     """Update person information"""
-    country_code = country.upper()
-    
     try:
-        person_service = PersonService(db, country_code)
-        validation_service = ValidationService(db, country_code)
+        person_service = PersonService(db)
+        validation_service = ValidationService(db)
         
         # Check if person exists
         existing_person = await person_service.get_by_id(person_id)
@@ -242,9 +229,7 @@ async def update_person(
             )
         
         # Validate business rules for updates
-        validation_results = await validation_service.validate_person_update(
-            person_id, person_data
-        )
+        validation_results = await validation_service.validate_person_creation(person_data)
         
         if not all(result.is_valid for result in validation_results):
             failed_validations = [r for r in validation_results if not r.is_valid]
@@ -262,7 +247,7 @@ async def update_person(
         logger.info(
             "Person updated successfully",
             person_id=person_id,
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
         return PersonResponse.from_orm(updated_person)
@@ -274,7 +259,7 @@ async def update_person(
             "Error updating person",
             error=str(e),
             person_id=person_id,
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
@@ -285,31 +270,34 @@ async def update_person(
 
 @router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_person(
-    country: str = Path(..., description="Country code"),
     person_id: str = Path(..., description="Person UUID"),
     db: Session = Depends(get_db)
 ):
-    """Soft delete a person record"""
-    country_code = country.upper()
-    
+    """Soft delete person record"""
     try:
-        person_service = PersonService(db, country_code)
+        person_service = PersonService(db)
         
         # Check if person exists
-        person = await person_service.get_by_id(person_id)
-        if not person:
+        existing_person = await person_service.get_by_id(person_id)
+        if not existing_person:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Person with ID {person_id} not found"
             )
         
-        # Perform soft delete
-        await person_service.soft_delete_person(person_id)
+        # Delete person
+        deleted = await person_service.delete_person(person_id)
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete person"
+            )
         
         logger.info(
-            "Person soft deleted",
+            "Person deleted successfully",
             person_id=person_id,
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
     except HTTPException:
@@ -319,7 +307,7 @@ async def delete_person(
             "Error deleting person",
             error=str(e),
             person_id=person_id,
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
@@ -330,133 +318,48 @@ async def delete_person(
 
 @router.post("/validate", response_model=PersonValidationResponse)
 async def validate_person(
-    country: str = Path(..., description="Country code"),
-    person_data: PersonCreateRequest = ...,
+    person_data: PersonCreateRequest,
     db: Session = Depends(get_db)
 ) -> PersonValidationResponse:
     """
-    Validate person data against business rules without creating
+    Validate person data against business rules without creating record
     
-    Useful for frontend validation and form checking
-    Implements all validation rules V00001-V00019, V00485, V00585
+    Useful for frontend validation and preview functionality
     """
-    country_code = country.upper()
-    
     try:
-        validation_service = ValidationService(db, country_code)
+        validation_service = ValidationService(db)
         
-        # Run all validation rules
+        # Perform validation
         validation_results = await validation_service.validate_person_creation(person_data)
         
-        # Check if person already exists
-        person_service = PersonService(db, country_code)
-        existing_person = await person_service.find_by_identification(
-            person_data.identification_type,
-            person_data.identification_number
-        )
-        
-        if existing_person:
-            validation_results.append(ValidationResult(
-                is_valid=False,
-                code="V00014",
-                message="Person with this identification already exists"
-            ))
-        
+        # Check overall validity
         is_valid = all(result.is_valid for result in validation_results)
         
         logger.info(
             "Person validation performed",
             is_valid=is_valid,
             validation_count=len(validation_results),
-            country=country_code
+            country=settings.COUNTRY_CODE
         )
         
         return PersonValidationResponse(
-            person_id=str(existing_person.id) if existing_person else None,
+            is_valid=is_valid,
             validation_results=validation_results,
-            is_valid=is_valid
+            summary={
+                "total_validations": len(validation_results),
+                "passed_validations": len([r for r in validation_results if r.is_valid]),
+                "failed_validations": len([r for r in validation_results if not r.is_valid])
+            }
         )
         
     except Exception as e:
         logger.error(
             "Error validating person",
             error=str(e),
-            country=country_code,
+            country=settings.COUNTRY_CODE,
             exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during person validation"
-        )
-
-
-@router.get("/{person_id}/eligibility/{license_type}")
-async def check_license_eligibility(
-    country: str = Path(..., description="Country code"),
-    person_id: str = Path(..., description="Person UUID"),
-    license_type: str = Path(..., description="License type (A, B, C, D, EB, EC)"),
-    db: Session = Depends(get_db)
-) -> dict:
-    """Check if person is eligible for specific license type"""
-    country_code = country.upper()
-    
-    try:
-        person_service = PersonService(db, country_code)
-        person = await person_service.get_by_id(person_id)
-        
-        if not person:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Person with ID {person_id} not found"
-            )
-        
-        # Check age eligibility
-        is_eligible = person.is_eligible_for_license_type(license_type)
-        current_age = person.get_age()
-        
-        # Get age requirement for license type
-        age_requirements = {
-            'A': 16, 'B': 18, 'C': 21, 'D': 24, 'EB': 18, 'EC': 21
-        }
-        required_age = age_requirements.get(license_type, 18)
-        
-        return {
-            "person_id": person_id,
-            "license_type": license_type,
-            "is_eligible": is_eligible,
-            "current_age": current_age,
-            "required_age": required_age,
-            "eligibility_reason": "Age requirement met" if is_eligible else f"Must be at least {required_age} years old"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "Error checking license eligibility",
-            error=str(e),
-            person_id=person_id,
-            license_type=license_type,
-            country=country_code,
-            exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error during eligibility check"
-        )
-
-
-@router.get("/search")
-async def search_persons(
-    country: str = Path(..., description="Country code"),
-    identification_number: Optional[str] = Query(None),
-    surname: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
-    """Search for persons"""
-    
-    return {
-        "persons": [],
-        "total_count": 0,
-        "message": "Search functionality will be implemented"
-    } 
+        ) 
