@@ -4,9 +4,16 @@ Single-country deployment with simplified routing
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import persons, countries, health, licenses
+from app.api.v1.endpoints import persons, countries, health, licenses, auth
 
 api_router = APIRouter()
+
+# Authentication endpoints (no auth required)
+api_router.include_router(
+    auth.router,
+    prefix="/auth",
+    tags=["authentication"]
+)
 
 # Health and system endpoints
 api_router.include_router(

@@ -11,6 +11,7 @@ from .license import (
     ApplicationStatus,
     LicenseType
 )
+from .user import User, Role, Permission, UserAuditLog, UserStatus
 
 __all__ = [
     "BaseModel",
@@ -22,6 +23,11 @@ __all__ = [
     "TestCenter",
     "ApplicationStatus",
     "LicenseType",
+    "User",
+    "Role",
+    "Permission", 
+    "UserAuditLog",
+    "UserStatus",
     # Enums
     "Gender",
     "IdDocumentType", 
