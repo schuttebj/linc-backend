@@ -1,369 +1,312 @@
 #!/usr/bin/env python3
 """
 LINC User System Initialization Script
-
-This script creates the default user management system including:
-- System roles (Admin, Operator, Examiner, Viewer)
-- System permissions (based on documentation business rules)
-- Default admin user
-- Default test users
-
-Usage:
-    python create_user_system.py
+Creates default roles, permissions, and users for the authentication system
 """
 
-import sys
 import os
-from pathlib import Path
+import sys
+from contextlib import contextmanager
+from typing import List, Dict, Any
+
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from sqlalchemy.orm import Session
+from app.core.database import engine
+from app.models.user import User, Role, Permission, UserRole, RolePermission, UserStatus
+from app.schemas.user import UserCreate, RoleCreate, PermissionCreate
+from app.core.security import get_password_hash
 from datetime import datetime
 import uuid
 
-# Add the app directory to the Python path
-app_dir = Path(__file__).parent / "app"
-sys.path.insert(0, str(app_dir))
 
-from app.core.database import get_db_context
-from app.models.user import User, Role, Permission, UserStatus, user_roles, role_permissions
-from app.models.enums import ValidationStatus
-from app.services.user_service import UserService
-from app.schemas.user import UserCreate, RoleCreate, PermissionCreate
-import structlog
+@contextmanager
+def get_db_session():
+    """Get database session context manager"""
+    db = Session(engine)
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
-logger = structlog.get_logger()
 
 def create_default_permissions():
-    """Create default system permissions based on documentation business rules"""
-    
-    permissions = [
-        # License Application Management
+    """Create default permissions for the LINC system"""
+    return [
+        # License Management Permissions
         {
             "name": "license.application.create",
             "display_name": "Create License Application",
-            "description": "Permission to create new license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "create"
+            "description": "Create new license applications",
+            "category": "license"
         },
         {
-            "name": "license.application.read",
+            "name": "license.application.read", 
             "display_name": "View License Applications",
-            "description": "Permission to view license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "read"
+            "description": "View and search license applications",
+            "category": "license"
         },
         {
             "name": "license.application.update",
             "display_name": "Update License Application",
-            "description": "Permission to update license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "update"
+            "description": "Update existing license applications",
+            "category": "license"
         },
         {
             "name": "license.application.delete",
             "display_name": "Delete License Application",
-            "description": "Permission to delete license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "delete"
-        },
-        {
-            "name": "license.application.submit",
-            "display_name": "Submit License Application",
-            "description": "Permission to submit license applications for processing",
-            "category": "license",
-            "resource": "license_application",
-            "action": "submit"
+            "description": "Delete license applications",
+            "category": "license"
         },
         {
             "name": "license.application.approve",
             "display_name": "Approve License Application",
-            "description": "Permission to approve license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "approve"
+            "description": "Approve or reject license applications", 
+            "category": "license"
         },
         {
-            "name": "license.application.reject",
-            "display_name": "Reject License Application",
-            "description": "Permission to reject license applications",
-            "category": "license",
-            "resource": "license_application",
-            "action": "reject"
+            "name": "license.issue",
+            "display_name": "Issue License",
+            "description": "Issue approved licenses",
+            "category": "license"
+        },
+        {
+            "name": "license.renew",
+            "display_name": "Renew License",
+            "description": "Process license renewals",
+            "category": "license"
+        },
+        {
+            "name": "license.suspend",
+            "display_name": "Suspend License",
+            "description": "Suspend or reinstate licenses",
+            "category": "license"
         },
         
-        # Person Management
+        # Person Management Permissions
         {
             "name": "person.create",
-            "display_name": "Create Person",
-            "description": "Permission to create new person records",
-            "category": "person",
-            "resource": "person",
-            "action": "create"
+            "display_name": "Create Person Record",
+            "description": "Create new person records",
+            "category": "person"
         },
         {
             "name": "person.read",
-            "display_name": "View Person Records",
-            "description": "Permission to view person records",
-            "category": "person",
-            "resource": "person",
-            "action": "read"
+            "display_name": "View Person Records", 
+            "description": "View person information",
+            "category": "person"
         },
         {
             "name": "person.update",
-            "display_name": "Update Person Records",
-            "description": "Permission to update person records",
-            "category": "person",
-            "resource": "person",
-            "action": "update"
+            "display_name": "Update Person Record",
+            "description": "Update person information",
+            "category": "person"
         },
         {
             "name": "person.delete",
-            "display_name": "Delete Person Records",
-            "description": "Permission to delete person records",
-            "category": "person",
-            "resource": "person",
-            "action": "delete"
+            "display_name": "Delete Person Record",
+            "description": "Delete person records",
+            "category": "person"
         },
         
-        # Financial Management
+        # Financial Permissions
         {
             "name": "finance.payment.create",
             "display_name": "Process Payments",
-            "description": "Permission to process payments and fees",
-            "category": "financial",
-            "resource": "payment",
-            "action": "create"
+            "description": "Process and record payments",
+            "category": "financial"
         },
         {
             "name": "finance.payment.read",
-            "display_name": "View Payment Records",
-            "description": "Permission to view payment records",
-            "category": "financial",
-            "resource": "payment",
-            "action": "read"
+            "display_name": "View Financial Records",
+            "description": "View payment and financial records",
+            "category": "financial"
         },
         {
-            "name": "finance.refund.create",
+            "name": "finance.refund.process",
             "display_name": "Process Refunds",
-            "description": "Permission to process refunds",
-            "category": "financial",
-            "resource": "refund",
-            "action": "create"
-        },
-        {
-            "name": "finance.report.read",
-            "display_name": "View Financial Reports",
-            "description": "Permission to view financial reports",
-            "category": "financial",
-            "resource": "report",
-            "action": "read"
+            "description": "Process refund requests",
+            "category": "financial"
         },
         
-        # Test Center Management
+        # Testing Permissions
         {
-            "name": "test.schedule.create",
+            "name": "test.schedule",
             "display_name": "Schedule Tests",
-            "description": "Permission to schedule driving tests",
-            "category": "testing",
-            "resource": "test_schedule",
-            "action": "create"
+            "description": "Schedule driving tests",
+            "category": "testing"
         },
         {
-            "name": "test.result.create",
-            "display_name": "Record Test Results",
-            "description": "Permission to record test results",
-            "category": "testing",
-            "resource": "test_result",
-            "action": "create"
+            "name": "test.conduct",
+            "display_name": "Conduct Tests",
+            "description": "Conduct and score driving tests",
+            "category": "testing"
         },
         {
-            "name": "test.center.manage",
-            "display_name": "Manage Test Centers",
-            "description": "Permission to manage test center information",
-            "category": "testing",
-            "resource": "test_center",
-            "action": "manage"
+            "name": "test.results.update",
+            "display_name": "Update Test Results",
+            "description": "Update test results and scores",
+            "category": "testing"
         },
         
-        # Administrative Functions
+        # Administration Permissions
         {
             "name": "admin.user.create",
             "display_name": "Create Users",
-            "description": "Permission to create new user accounts",
-            "category": "administration",
-            "resource": "user",
-            "action": "create"
+            "description": "Create new system users",
+            "category": "administration"
         },
         {
             "name": "admin.user.read",
             "display_name": "View Users",
-            "description": "Permission to view user accounts",
-            "category": "administration",
-            "resource": "user",
-            "action": "read"
+            "description": "View system users",
+            "category": "administration"
         },
         {
             "name": "admin.user.update",
             "display_name": "Update Users",
-            "description": "Permission to update user accounts",
-            "category": "administration",
-            "resource": "user",
-            "action": "update"
+            "description": "Update system user accounts",
+            "category": "administration"
         },
         {
             "name": "admin.user.delete",
-            "display_name": "Delete Users",
-            "description": "Permission to delete user accounts",
-            "category": "administration",
-            "resource": "user",
-            "action": "delete"
+            "display_name": "Delete Users", 
+            "description": "Delete system user accounts",
+            "category": "administration"
         },
         {
             "name": "admin.role.manage",
             "display_name": "Manage Roles",
-            "description": "Permission to manage user roles and permissions",
-            "category": "administration",
-            "resource": "role",
-            "action": "manage"
+            "description": "Create and manage user roles",
+            "category": "administration"
         },
         {
-            "name": "admin.system.manage",
-            "display_name": "System Administration",
-            "description": "Permission for system administration tasks",
-            "category": "administration",
-            "resource": "system",
-            "action": "manage"
-        },
-        {
-            "name": "admin.audit.read",
-            "display_name": "View Audit Logs",
-            "description": "Permission to view system audit logs",
-            "category": "administration",
-            "resource": "audit_log",
-            "action": "read"
+            "name": "admin.system.config",
+            "display_name": "System Configuration",
+            "description": "Configure system settings",
+            "category": "administration"
         },
         
-        # Reporting
+        # Reporting Permissions
         {
             "name": "report.license.read",
             "display_name": "License Reports",
-            "description": "Permission to view license-related reports",
-            "category": "reporting",
-            "resource": "license_report",
-            "action": "read"
+            "description": "Generate license-related reports",
+            "category": "reporting"
+        },
+        {
+            "name": "report.financial.read",
+            "display_name": "Financial Reports",
+            "description": "Generate financial reports",
+            "category": "reporting"
         },
         {
             "name": "report.operational.read",
-            "display_name": "Operational Reports",
-            "description": "Permission to view operational reports",
-            "category": "reporting",
-            "resource": "operational_report",
-            "action": "read"
-        },
-        {
-            "name": "report.export",
-            "display_name": "Export Reports",
-            "description": "Permission to export reports and data",
-            "category": "reporting",
-            "resource": "export",
-            "action": "create"
+            "display_name": "Operational Reports", 
+            "description": "Generate operational reports",
+            "category": "reporting"
         }
     ]
-    
-    return permissions
+
 
 def create_default_roles():
-    """Create default system roles based on documentation requirements"""
-    
-    roles = [
+    """Create default roles with appropriate permissions"""
+    return [
         {
             "name": "super_admin",
             "display_name": "Super Administrator",
             "description": "Full system access with all permissions",
+            "level": 1,
             "is_system_role": True,
-            "level": 0,
-            "permissions": []  # Superusers get all permissions automatically
+            "permissions": [
+                "license.application.create", "license.application.read", "license.application.update", 
+                "license.application.delete", "license.application.approve", "license.issue", 
+                "license.renew", "license.suspend",
+                "person.create", "person.read", "person.update", "person.delete",
+                "finance.payment.create", "finance.payment.read", "finance.refund.process",
+                "test.schedule", "test.conduct", "test.results.update",
+                "admin.user.create", "admin.user.read", "admin.user.update", "admin.user.delete",
+                "admin.role.manage", "admin.system.config",
+                "report.license.read", "report.financial.read", "report.operational.read"
+            ]
         },
         {
             "name": "admin",
-            "display_name": "Administrator",
-            "description": "Administrative access to manage users and system configuration",
+            "display_name": "Administrator", 
+            "description": "Administrative access with user management",
+            "level": 2,
             "is_system_role": True,
-            "level": 1,
             "permissions": [
-                "admin.user.create", "admin.user.read", "admin.user.update", "admin.user.delete",
-                "admin.role.manage", "admin.system.manage", "admin.audit.read",
+                "license.application.read", "license.application.update", "license.application.approve",
                 "person.create", "person.read", "person.update",
-                "license.application.read", "license.application.update",
-                "report.license.read", "report.operational.read", "report.export"
+                "finance.payment.read",
+                "admin.user.create", "admin.user.read", "admin.user.update",
+                "admin.role.manage",
+                "report.license.read", "report.operational.read"
             ]
         },
         {
             "name": "license_manager",
             "display_name": "License Manager",
-            "description": "Full license application management including approvals",
+            "description": "Manage license operations and approvals",
+            "level": 3,
             "is_system_role": True,
-            "level": 2,
             "permissions": [
-                "license.application.create", "license.application.read", 
-                "license.application.update", "license.application.submit",
-                "license.application.approve", "license.application.reject",
+                "license.application.create", "license.application.read", "license.application.update",
+                "license.application.approve", "license.issue", "license.renew", "license.suspend",
                 "person.create", "person.read", "person.update",
-                "finance.payment.read", "finance.report.read",
-                "test.schedule.create", "test.center.manage",
                 "report.license.read", "report.operational.read"
             ]
         },
         {
             "name": "license_operator",
             "display_name": "License Operator",
-            "description": "License application processing and customer service",
+            "description": "Process license applications and basic operations",
+            "level": 4,
             "is_system_role": True,
-            "level": 3,
             "permissions": [
-                "license.application.create", "license.application.read", 
-                "license.application.update", "license.application.submit",
+                "license.application.create", "license.application.read", "license.application.update",
+                "license.issue", "license.renew",
                 "person.create", "person.read", "person.update",
-                "finance.payment.create", "finance.payment.read",
-                "test.schedule.create",
-                "report.license.read"
+                "finance.payment.create", "finance.payment.read"
             ]
         },
         {
             "name": "examiner",
             "display_name": "Driving Test Examiner",
-            "description": "Conduct driving tests and record results",
+            "description": "Conduct driving tests and manage test results",
+            "level": 5,
             "is_system_role": True,
-            "level": 3,
             "permissions": [
                 "license.application.read",
                 "person.read",
-                "test.schedule.create", "test.result.create", "test.center.manage",
-                "report.operational.read"
+                "test.schedule", "test.conduct", "test.results.update"
             ]
         },
         {
             "name": "financial_officer",
             "display_name": "Financial Officer",
-            "description": "Financial operations and payment processing",
+            "description": "Manage payments and financial operations",
+            "level": 5,
             "is_system_role": True,
-            "level": 3,
             "permissions": [
-                "finance.payment.create", "finance.payment.read",
-                "finance.refund.create", "finance.report.read",
                 "license.application.read",
                 "person.read",
-                "report.operational.read", "report.export"
+                "finance.payment.create", "finance.payment.read", "finance.refund.process",
+                "report.financial.read"
             ]
         },
         {
             "name": "viewer",
-            "display_name": "Read-Only Viewer",
-            "description": "Read-only access to view records and reports",
+            "display_name": "Viewer",
+            "description": "Read-only access to basic information",
+            "level": 6,
             "is_system_role": True,
-            "level": 4,
             "permissions": [
                 "license.application.read",
                 "person.read",
@@ -372,8 +315,7 @@ def create_default_roles():
             ]
         }
     ]
-    
-    return roles
+
 
 def main():
     """Initialize the user authentication system"""
@@ -382,9 +324,7 @@ def main():
     print("=" * 60)
     
     try:
-        with get_db_context() as db:
-            user_service = UserService(db)
-            
+        with get_db_session() as db:
             # Step 1: Create permissions
             print("\n📋 Creating system permissions...")
             permission_data = create_default_permissions()
@@ -397,10 +337,18 @@ def main():
                     ).first()
                     
                     if not existing_permission:
-                        permission_create = PermissionCreate(**perm_data)
-                        permission = await user_service.create_permission(
-                            permission_create, created_by="system"
+                        permission = Permission(
+                            id=str(uuid.uuid4()),
+                            name=perm_data["name"],
+                            display_name=perm_data["display_name"],
+                            description=perm_data["description"],
+                            category=perm_data["category"],
+                            is_active=True,
+                            created_at=datetime.utcnow(),
+                            created_by="system"
                         )
+                        db.add(permission)
+                        db.flush()
                         permissions_created[permission.name] = permission
                         print(f"  ✅ Created permission: {permission.display_name}")
                     else:
@@ -424,30 +372,33 @@ def main():
                     ).first()
                     
                     if not existing_role:
-                        # Get permission IDs for this role
-                        permission_ids = []
+                        role = Role(
+                            id=str(uuid.uuid4()),
+                            name=role_info["name"],
+                            display_name=role_info["display_name"],
+                            description=role_info["description"],
+                            level=role_info["level"],
+                            is_system_role=role_info["is_system_role"],
+                            is_active=True,
+                            created_at=datetime.utcnow(),
+                            created_by="system"
+                        )
+                        db.add(role)
+                        db.flush()
+                        
+                        # Add permissions to role
                         for perm_name in role_info["permissions"]:
                             if perm_name in permissions_created:
-                                permission_ids.append(str(permissions_created[perm_name].id))
-                        
-                        role_create_data = {
-                            "name": role_info["name"],
-                            "display_name": role_info["display_name"],
-                            "description": role_info["description"],
-                            "is_active": True,
-                            "permission_ids": permission_ids
-                        }
-                        
-                        role_create = RoleCreate(**role_create_data)
-                        role = await user_service.create_role(role_create, created_by="system")
-                        
-                        # Set system role flag
-                        role.is_system_role = role_info["is_system_role"]
-                        role.level = role_info["level"]
-                        db.commit()
+                                role_permission = RolePermission(
+                                    role_id=role.id,
+                                    permission_id=permissions_created[perm_name].id,
+                                    created_at=datetime.utcnow(),
+                                    created_by="system"
+                                )
+                                db.add(role_permission)
                         
                         roles_created[role.name] = role
-                        print(f"  ✅ Created role: {role.display_name} ({len(permission_ids)} permissions)")
+                        print(f"  ✅ Created role: {role.display_name} ({len(role_info['permissions'])} permissions)")
                     else:
                         roles_created[existing_role.name] = existing_role
                         print(f"  ⏭️  Role exists: {existing_role.display_name}")
@@ -463,31 +414,36 @@ def main():
                 existing_admin = db.query(User).filter(User.username == "admin").first()
                 
                 if not existing_admin:
-                    # Get super_admin role ID
-                    super_admin_role = roles_created.get("super_admin")
-                    role_ids = [str(super_admin_role.id)] if super_admin_role else []
-                    
-                    admin_user_data = UserCreate(
+                    admin_user = User(
+                        id=str(uuid.uuid4()),
                         username="admin",
                         email="admin@linc.gov.za",
                         first_name="System",
                         last_name="Administrator",
-                        password="Admin123!",  # Default password - should be changed immediately
+                        password_hash=get_password_hash("Admin123!"),
                         employee_id="ADMIN001",
                         department="IT Administration",
                         country_code="ZA",
-                        role_ids=role_ids,
                         is_active=True,
-                        require_password_change=True
+                        is_verified=True,
+                        is_superuser=True,
+                        status=UserStatus.ACTIVE.value,
+                        require_password_change=True,
+                        created_at=datetime.utcnow(),
+                        created_by="system"
                     )
+                    db.add(admin_user)
+                    db.flush()
                     
-                    admin_user = await user_service.create_user(admin_user_data, created_by="system")
-                    
-                    # Set superuser flag
-                    admin_user.is_superuser = True
-                    admin_user.is_verified = True
-                    admin_user.status = UserStatus.ACTIVE.value
-                    db.commit()
+                    # Add super_admin role to admin user
+                    if "super_admin" in roles_created:
+                        user_role = UserRole(
+                            user_id=admin_user.id,
+                            role_id=roles_created["super_admin"].id,
+                            created_at=datetime.utcnow(),
+                            created_by="system"
+                        )
+                        db.add(user_role)
                     
                     print(f"  ✅ Created admin user: {admin_user.username}")
                     print(f"      📧 Email: {admin_user.email}")
@@ -541,28 +497,35 @@ def main():
                     ).first()
                     
                     if not existing_user:
-                        # Get role ID
-                        role = roles_created.get(user_info["role"])
-                        role_ids = [str(role.id)] if role else []
-                        
-                        user_data = UserCreate(
+                        user = User(
+                            id=str(uuid.uuid4()),
                             username=user_info["username"],
                             email=user_info["email"],
                             first_name=user_info["first_name"],
                             last_name=user_info["last_name"],
-                            password=user_info["password"],
+                            password_hash=get_password_hash(user_info["password"]),
                             employee_id=user_info["employee_id"],
                             department=user_info["department"],
                             country_code="ZA",
-                            role_ids=role_ids,
                             is_active=True,
-                            require_password_change=True
+                            is_verified=True,
+                            status=UserStatus.ACTIVE.value,
+                            require_password_change=True,
+                            created_at=datetime.utcnow(),
+                            created_by="system"
                         )
+                        db.add(user)
+                        db.flush()
                         
-                        user = await user_service.create_user(user_data, created_by="system")
-                        user.is_verified = True
-                        user.status = UserStatus.ACTIVE.value
-                        db.commit()
+                        # Add role to user
+                        if user_info["role"] in roles_created:
+                            user_role = UserRole(
+                                user_id=user.id,
+                                role_id=roles_created[user_info["role"]].id,
+                                created_at=datetime.utcnow(),
+                                created_by="system"
+                            )
+                            db.add(user_role)
                         
                         print(f"  ✅ Created user: {user.username} ({user_info['role']})")
                     else:
@@ -597,6 +560,7 @@ def main():
         return 1
     
     return 0
+
 
 if __name__ == "__main__":
     exit(main()) 
