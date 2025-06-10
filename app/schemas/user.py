@@ -7,6 +7,7 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, EmailStr, validator, Field
 from enum import Enum
+import uuid
 
 class UserStatus(str, Enum):
     """User account status"""
@@ -195,6 +196,12 @@ class UserResponse(BaseModel):
     updated_at: datetime
     roles: List["RoleResponse"] = []
     
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
         json_schema_extra = {
@@ -259,6 +266,12 @@ class RoleResponse(BaseModel):
     created_at: datetime
     permissions: List["PermissionResponse"] = []
     
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
 
@@ -307,6 +320,12 @@ class PermissionResponse(BaseModel):
     is_system_permission: bool
     created_at: datetime
     
+    @validator('id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
     class Config:
         from_attributes = True
 
@@ -327,6 +346,12 @@ class UserAuditLogResponse(BaseModel):
     details: Optional[str]
     created_at: datetime
     user: Optional[UserResponse]
+    
+    @validator('id', 'user_id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
     
     class Config:
         from_attributes = True
