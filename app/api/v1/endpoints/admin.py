@@ -3,15 +3,13 @@ Admin Endpoints - Database and System Administration
 Endpoints for database initialization, table creation, and system administration
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 import time
 from typing import Dict, Any
 
 from app.core.database import DatabaseManager
 from app.core.config import settings
-from app.core.auth import get_current_user
-from app.models.person import Person
 
 router = APIRouter()
 
