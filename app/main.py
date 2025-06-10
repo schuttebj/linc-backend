@@ -204,6 +204,32 @@ async def init_database():
             "timestamp": time.time()
         }
 
+# Database reset endpoint (for debugging) - DANGEROUS!
+@app.post("/admin/reset-database")
+async def reset_database():
+    """Drop and recreate all database tables - ADMIN ONLY - DANGEROUS!"""
+    try:
+        from app.core.database import engine, Base
+        
+        # Drop all existing tables
+        Base.metadata.drop_all(bind=engine)
+        
+        # Recreate all tables with current schema
+        Base.metadata.create_all(bind=engine)
+        
+        return {
+            "status": "success",
+            "message": "Database tables dropped and recreated successfully",
+            "warning": "All existing data was destroyed",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # User initialization endpoint (for debugging)
 @app.post("/admin/init-users")
 async def init_users():
