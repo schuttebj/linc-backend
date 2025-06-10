@@ -38,24 +38,29 @@ class EndpointMonitor:
             {"method": "GET", "path": "/health/database", "auth_required": False, "category": "health"},
             
             # Authentication endpoints
-            {"method": "GET", "path": "/api/v1/auth/profile", "auth_required": True, "category": "auth"},
-            {"method": "GET", "path": "/api/v1/users/current", "auth_required": True, "category": "users"},
+            {"method": "GET", "path": "/api/v1/auth/me", "auth_required": True, "category": "auth"},
+            {"method": "GET", "path": "/api/v1/auth/permissions", "auth_required": True, "category": "auth"},
             
-            # Configuration endpoints
-            {"method": "GET", "path": "/api/v1/countries/config", "auth_required": True, "category": "config"},
+            # Health endpoints (API)
+            {"method": "GET", "path": "/api/v1/health/", "auth_required": True, "category": "health"},
+            
+            # Country configuration endpoints
+            {"method": "GET", "path": "/api/v1/countries/current", "auth_required": True, "category": "countries"},
+            {"method": "GET", "path": "/api/v1/countries/modules", "auth_required": True, "category": "countries"},
             
             # Person management endpoints
-            {"method": "GET", "path": "/api/v1/persons/search?q=test&limit=1", "auth_required": True, "category": "persons"},
+            {"method": "POST", "path": "/api/v1/persons/search", "auth_required": True, "category": "persons"},
+            {"method": "GET", "path": "/api/v1/persons/lookups/person-natures", "auth_required": True, "category": "persons"},
             
             # License management endpoints
-            {"method": "GET", "path": "/api/v1/licenses/types", "auth_required": True, "category": "licenses"},
+            {"method": "GET", "path": "/api/v1/licenses/license-types", "auth_required": True, "category": "licenses"},
+            {"method": "GET", "path": "/api/v1/licenses/application-statuses", "auth_required": True, "category": "licenses"},
             
             # File storage endpoints
             {"method": "GET", "path": "/api/v1/files/storage/health", "auth_required": True, "category": "files"},
             
-            # Admin endpoints
-            {"method": "GET", "path": "/api/v1/admin/users", "auth_required": True, "category": "admin"},
-            {"method": "GET", "path": "/api/v1/admin/logs?limit=1", "auth_required": True, "category": "admin"},
+            # User management endpoints
+            {"method": "GET", "path": "/api/v1/users/", "auth_required": True, "category": "users"},
             
             # Monitoring endpoints (self-test)
             {"method": "GET", "path": "/api/v1/monitoring/health/history?hours=1", "auth_required": True, "category": "monitoring"}
@@ -513,12 +518,13 @@ async def get_uptime_report(
         end_time = datetime.utcnow()
         
         # Get monitoring logs from audit system
-        monitoring_logs = audit_service.db.query(audit_service.audit_service.AuditLogModel).filter(
-            audit_service.audit_service.AuditLogModel.action_type.in_(["ENDPOINT_MONITORING", "CONTINUOUS_MONITORING"]),
-            audit_service.audit_service.AuditLogModel.timestamp >= start_time,
-            audit_service.audit_service.AuditLogModel.timestamp <= end_time,
-            audit_service.audit_service.AuditLogModel.country_code == settings.COUNTRY_CODE
-        ).order_by(audit_service.audit_service.AuditLogModel.timestamp.desc()).all()
+        from app.models.audit import AuditLog
+        monitoring_logs = audit_service.db.query(AuditLog).filter(
+            AuditLog.action_type.in_(["ENDPOINT_MONITORING", "CONTINUOUS_MONITORING"]),
+            AuditLog.timestamp >= start_time,
+            AuditLog.timestamp <= end_time,
+            AuditLog.country_code == settings.COUNTRY_CODE
+        ).order_by(AuditLog.timestamp.desc()).all()
         
         # Calculate uptime statistics
         total_checks = len(monitoring_logs)
@@ -586,12 +592,13 @@ async def get_monitoring_history(
         end_time = datetime.utcnow()
         
         # Get monitoring logs from audit system
-        monitoring_logs = audit_service.db.query(audit_service.audit_service.AuditLogModel).filter(
-            audit_service.audit_service.AuditLogModel.action_type.in_(["ENDPOINT_MONITORING", "CONTINUOUS_MONITORING"]),
-            audit_service.audit_service.AuditLogModel.timestamp >= start_time,
-            audit_service.audit_service.AuditLogModel.timestamp <= end_time,
-            audit_service.audit_service.AuditLogModel.country_code == settings.COUNTRY_CODE
-        ).order_by(audit_service.audit_service.AuditLogModel.timestamp.desc()).all()
+        from app.models.audit import AuditLog
+        monitoring_logs = audit_service.db.query(AuditLog).filter(
+            AuditLog.action_type.in_(["ENDPOINT_MONITORING", "CONTINUOUS_MONITORING"]),
+            AuditLog.timestamp >= start_time,
+            AuditLog.timestamp <= end_time,
+            AuditLog.country_code == settings.COUNTRY_CODE
+        ).order_by(AuditLog.timestamp.desc()).all()
         
         history = []
         for log in monitoring_logs:

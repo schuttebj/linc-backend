@@ -209,7 +209,6 @@ class PersonService:
         """Get person by ID with all related data - CORRECTED relationships"""
         person = self.db.query(Person).options(
             selectinload(Person.natural_person),
-            selectinload(Person.organization),  # ADDED: organization relationship
             selectinload(Person.aliases),
             selectinload(Person.addresses)
         ).filter(Person.id == person_id).first()
@@ -347,7 +346,6 @@ class PersonService:
         """Get multiple persons by IDs"""
         persons = self.db.query(Person).options(
             selectinload(Person.natural_person),
-            selectinload(Person.organization),
             selectinload(Person.aliases),
             selectinload(Person.addresses)
         ).filter(Person.id.in_(person_ids)).all()
