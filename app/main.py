@@ -204,6 +204,104 @@ async def init_database():
             "timestamp": time.time()
         }
 
+# User initialization endpoint (for debugging)
+@app.post("/admin/init-users")
+async def init_users():
+    """Create default users and roles - ADMIN ONLY"""
+    try:
+        from app.core.database import get_db_context
+        from app.models.user import User, Role, Permission, UserStatus
+        from app.core.security import get_password_hash
+        from datetime import datetime
+        import uuid
+        
+        with get_db_context() as db:
+            # Check if admin user already exists
+            existing_admin = db.query(User).filter(User.username == "admin").first()
+            if existing_admin:
+                return {
+                    "status": "info",
+                    "message": "Default users already exist",
+                    "timestamp": time.time()
+                }
+            
+            # Create default permissions
+            permissions = [
+                {"name": "person_view", "description": "View person records"},
+                {"name": "person_create", "description": "Create person records"},
+                {"name": "person_edit", "description": "Edit person records"},
+                {"name": "license_view", "description": "View license applications"},
+                {"name": "license_create", "description": "Create license applications"},
+                {"name": "license_approve", "description": "Approve license applications"},
+                {"name": "user_manage", "description": "Manage user accounts"},
+                {"name": "system_admin", "description": "System administration"}
+            ]
+            
+            created_permissions = {}
+            for perm_data in permissions:
+                permission = Permission(
+                    id=uuid.uuid4(),
+                    name=perm_data["name"],
+                    description=perm_data["description"],
+                    category="system",
+                    created_at=datetime.utcnow(),
+                    created_by="system"
+                )
+                db.add(permission)
+                created_permissions[perm_data["name"]] = permission
+            
+            # Create super admin role
+            admin_role = Role(
+                id=uuid.uuid4(),
+                name="super_admin",
+                description="Super Administrator",
+                is_system_role=True,
+                created_at=datetime.utcnow(),
+                created_by="system"
+            )
+            db.add(admin_role)
+            
+            # Add all permissions to admin role
+            for permission in created_permissions.values():
+                admin_role.permissions.append(permission)
+            
+            # Create admin user
+            admin_user = User(
+                id=uuid.uuid4(),
+                username="admin",
+                email="admin@linc.system",
+                first_name="System",
+                last_name="Administrator",
+                password_hash=get_password_hash("Admin123!"),
+                status=UserStatus.ACTIVE,
+                is_superuser=True,
+                must_change_password=True,
+                created_at=datetime.utcnow(),
+                created_by="system"
+            )
+            db.add(admin_user)
+            
+            # Add admin role to user
+            admin_user.roles.append(admin_role)
+            
+            db.commit()
+            
+            return {
+                "status": "success",
+                "message": "Default users created successfully",
+                "users_created": ["admin"],
+                "default_password": "Admin123!",
+                "note": "Password must be changed on first login",
+                "timestamp": time.time()
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
