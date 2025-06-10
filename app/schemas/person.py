@@ -1,202 +1,526 @@
 """
-Person Management Schemas
-Pydantic models for person registration, search, and management
-Reference: Section 1.1 Person Registration/Search Screen
+Person Management Schemas - CORRECTED IMPLEMENTATION
+Pydantic models for person data validation and serialization
+Matches corrected model structure and documentation requirements
 """
 
-from pydantic import BaseModel, Field, EmailStr, validator
-from typing import Optional, List
-from datetime import date, datetime
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from datetime import datetime, date
 from enum import Enum
 
 
-class IdentificationTypeEnum(str, Enum):
-    """Valid identification document types"""
-    RSA_ID = "01"
-    PASSPORT = "02"
-    TEMPORARY_ID = "03"
-    ASYLUM_DOCUMENT = "04"
-    BIRTH_CERTIFICATE = "97"
+class IdentificationType(str, Enum):
+    """
+    CORRECTED: Identification document types from LmIdDocTypeCd lookup
+    Based on documentation requirements
+    """
+    TRN = "01"              # Tax Reference Number (for organizations)
+    RSA_ID = "02"           # RSA ID Document (13 digits numeric)
+    FOREIGN_ID = "03"       # Foreign ID Document
+    BRN = "04"              # Business Registration Number (for organizations)
+    PASSPORT = "13"         # Passport
 
 
-class GenderEnum(str, Enum):
-    """Gender options for natural persons"""
-    MALE = "01"
-    FEMALE = "02"
+class PersonNature(str, Enum):
+    """
+    CORRECTED: Person nature classification from LmNatOfPer lookup
+    Based on PER.NATOFPER field from documentation
+    """
+    MALE = "01"             # Male (natural person)
+    FEMALE = "02"           # Female (natural person)
+    COMPANY = "03"          # Company/Corporation (TRN)
+    CLOSE_CORP = "10"       # Close Corporation (BRN 10)
+    TRUST = "11"            # Trust (BRN 11)
+    PARTNERSHIP = "12"      # Partnership (BRN 12)
+    SOLE_PROP = "13"        # Sole Proprietorship (BRN 13)
+    ASSOCIATION = "14"      # Association (BRN 14)
+    COOPERATIVE = "15"      # Cooperative (BRN 15)
+    NON_PROFIT = "16"       # Non-Profit Organization (BRN 16)
+    OTHER_ORG = "17"        # Other Organization (BRN 17)
 
 
-class NationalityEnum(str, Enum):
-    """Nationality codes"""
-    SOUTH_AFRICAN = "01"
-    FOREIGN = "02"
+class AddressType(str, Enum):
+    """
+    CORRECTED: Address type classification - matches documentation structure
+    Based on PER.STREETADDR vs PER.POSTADDR structure
+    """
+    STREET = "street"       # Physical/residential address (PER.STREETADDR1-5)
+    POSTAL = "postal"       # Postal address (PER.POSTADDR1-5)
 
 
-class PersonSearchRequest(BaseModel):
-    """Search request for finding persons"""
-    identification_type: Optional[IdentificationTypeEnum] = None
-    identification_number: Optional[str] = None
-    first_name: Optional[str] = None
-    surname: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    
-    @validator('identification_number')
-    def validate_id_number(cls, v, values):
-        """Validate identification number based on type"""
-        if v and 'identification_type' in values:
-            id_type = values['identification_type']
-            if id_type in ['01', '02', '04', '97'] and len(v) != 13:
-                raise ValueError('Identification number must be 13 characters for this type')
-            if id_type == '02' and not v.isdigit():
-                raise ValueError('RSA ID number must be numeric')
-        return v
-
-
-class PersonCreateRequest(BaseModel):
-    """Request model for creating a new person"""
-    # Core Identity Fields (V00001-V00019)
-    identification_type: IdentificationTypeEnum = Field(..., description="Identification document type (V00001)")
-    identification_number: str = Field(..., min_length=1, max_length=13, description="Identification number (V00013)")
-    first_name: str = Field(..., min_length=1, max_length=32, description="First name")
-    middle_name: Optional[str] = Field(None, max_length=32, description="Middle name")
-    surname: str = Field(..., min_length=1, max_length=32, description="Surname")
-    initials: Optional[str] = Field(None, max_length=3, description="Initials")
-    date_of_birth: date = Field(..., description="Date of birth")
-    gender: GenderEnum = Field(..., description="Gender (V00485)")
-    nationality: NationalityEnum = Field(..., description="Nationality")
-    language_preference: Optional[str] = Field(None, description="Preferred language code")
-    
-    # Contact Information
-    email_address: Optional[EmailStr] = Field(None, description="Email address")
-    home_phone_code: Optional[str] = Field(None, max_length=10, description="Home phone area code")
-    home_phone_number: Optional[str] = Field(None, max_length=10, description="Home phone number")
-    work_phone_code: Optional[str] = Field(None, max_length=10, description="Work phone area code")
-    work_phone_number: Optional[str] = Field(None, max_length=15, description="Work phone number")
-    cell_phone: Optional[str] = Field(None, max_length=15, description="Cell phone number")
-    fax_code: Optional[str] = Field(None, max_length=10, description="Fax area code")
-    fax_number: Optional[str] = Field(None, max_length=10, description="Fax number")
-    
-    @validator('identification_number')
-    def validate_identification_number(cls, v, values):
-        """Implements V00013, V00017, V00018, V00019"""
-        if not v:
-            raise ValueError('Identification number is mandatory (V00013)')
-        
-        if 'identification_type' in values:
-            id_type = values['identification_type']
-            
-            # V00018: 13 characters for specific types
-            if id_type in ['01', '02', '04', '97'] and len(v) != 13:
-                raise ValueError('Identification number must be 13 characters (V00018)')
-            
-            # V00017: Numeric validation for RSA ID
-            if id_type == '02' and not v.isdigit():
-                raise ValueError('RSA ID number must be numeric (V00017)')
-        
-        return v
-    
-    @validator('date_of_birth')
-    def validate_birth_date(cls, v):
-        """Validate birth date is not in future"""
-        if v > date.today():
-            raise ValueError('Birth date cannot be in the future')
-        return v
-    
-    @validator('home_phone_code', 'home_phone_number', 'work_phone_code', 'work_phone_number', 'cell_phone', 'fax_code', 'fax_number')
-    def validate_phone_numbers(cls, v):
-        """Validate phone numbers are numeric"""
-        if v and not v.isdigit():
-            raise ValueError('Phone numbers must be numeric')
-        return v
-
-
-class AddressRequest(BaseModel):
-    """Address information for persons"""
-    address_type: str = Field(..., description="'residential' or 'postal'")
-    street_address_line_1: str = Field(..., max_length=35, description="Street address line 1")
-    street_address_line_2: Optional[str] = Field(None, max_length=35, description="Street address line 2")
-    street_address_line_3: Optional[str] = Field(None, max_length=35, description="Street address line 3")
-    street_address_line_4: Optional[str] = Field(None, max_length=35, description="Street address line 4")
-    street_address_line_5: Optional[str] = Field(None, max_length=35, description="Street address line 5")
-    street_postal_code: str = Field(..., min_length=4, max_length=4, description="4-digit postal code")
-    postal_address_line_1: Optional[str] = Field(None, max_length=35, description="Postal address line 1")
-    postal_address_line_2: Optional[str] = Field(None, max_length=35, description="Postal address line 2")
-    postal_address_line_3: Optional[str] = Field(None, max_length=35, description="Postal address line 3")
-    postal_address_line_4: Optional[str] = Field(None, max_length=35, description="Postal address line 4")
-    postal_address_line_5: Optional[str] = Field(None, max_length=35, description="Postal address line 5")
-    postal_code: Optional[str] = Field(None, min_length=4, max_length=4, description="Postal code")
-    country: str = Field(..., description="Country code")
-    province: str = Field(..., description="Province/state")
-    city: str = Field(..., max_length=50, description="City name")
-    
-    @validator('street_postal_code', 'postal_code')
-    def validate_postal_codes(cls, v):
-        """Validate postal codes are 4-digit numeric"""
-        if v and (not v.isdigit() or len(v) != 4):
-            raise ValueError('Postal code must be 4-digit numeric')
-        return v
-
-
-class PersonResponse(BaseModel):
-    """Response model for person information"""
-    id: str = Field(..., description="Person UUID")
-    identification_type: str
-    identification_number: str
-    first_name: str
-    middle_name: Optional[str]
-    surname: str
-    initials: Optional[str]
-    date_of_birth: date
-    gender: str
-    nationality: str
-    language_preference: Optional[str]
-    email_address: Optional[str]
-    home_phone_code: Optional[str]
-    home_phone_number: Optional[str]
-    work_phone_code: Optional[str]
-    work_phone_number: Optional[str]
-    cell_phone: Optional[str]
-    fax_code: Optional[str]
-    fax_number: Optional[str]
+# Base schemas for common patterns
+class TimestampMixin(BaseModel):
+    """Common timestamp fields"""
     created_at: datetime
     updated_at: datetime
-    
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
+# Person Alias Schemas
+class PersonAliasBase(BaseModel):
+    """
+    Base person alias schema - implements validation V00001, V00013, V00016-V00019
+    """
+    id_document_type_code: IdentificationType = Field(..., description="ID document type from LmIdDocTypeCd lookup")
+    id_document_number: str = Field(..., min_length=1, max_length=13, description="ID document number (ALIAS.IDDOCN)")
+    country_of_issue: str = Field(default="ZA", max_length=3, description="Country of issue (ALIAS.CNTRYOFISSID)")
+    name_in_document: Optional[str] = Field(None, max_length=200, description="Name as in document (ALIAS.NAMEINDOC)")
+    alias_status: str = Field(default="1", regex="^[123]$", description="1=Current, 2=Historical, 3=Unacceptable")
+    is_current: bool = Field(default=True, description="Current/active alias")
+
+    @validator('id_document_number')
+    def validate_id_number(cls, v, values):
+        """
+        Implements validation codes V00013, V00017, V00018, V00019
+        """
+        doc_type = values.get('id_document_type_code')
+        
+        # V00013: Identification Number Mandatory (handled by Field requirements)
+        if not v or v.strip() == "":
+            raise ValueError('Identification number is mandatory (V00013)')
+        
+        # V00018: 13 chars for types 01,02,04,97
+        thirteen_char_types = [IdentificationType.TRN, IdentificationType.RSA_ID, IdentificationType.BRN]
+        if doc_type in thirteen_char_types and len(v) != 13:
+            raise ValueError(f'This type requires 13 characters (V00018)')
+        
+        # V00017: Numeric for type 02 (RSA ID)
+        if doc_type == IdentificationType.RSA_ID:
+            if not v.isdigit():
+                raise ValueError('RSA ID number must be numeric only (V00017)')
+            
+            # V00019: Basic check digit validation for RSA ID
+            if len(v) == 13:
+                if not cls._validate_rsa_id_checksum(v):
+                    raise ValueError('Invalid RSA ID check digit (V00019)')
+        
+        # V00019: Basic format validation for TRN/BRN
+        elif doc_type == IdentificationType.TRN:
+            if not v.isdigit():
+                raise ValueError('TRN must be numeric (V00019)')
+        elif doc_type == IdentificationType.BRN:
+            if not v.isdigit():
+                raise ValueError('BRN must be numeric (V00019)')
+        
+        return v
+
+    @validator('alias_status')
+    def validate_alias_status(cls, v, values):
+        """
+        Implements V00016: Unacceptable Alias Check
+        """
+        doc_type = values.get('id_document_type_code')
+        
+        # V00016: If ID Type ≠ 13 (Passport) → Alias status cannot be 3 (Unacceptable)
+        if doc_type != IdentificationType.PASSPORT and v == "3":
+            raise ValueError('This ID type cannot have unacceptable status (V00016)')
+        
+        return v
+
+    @staticmethod
+    def _validate_rsa_id_checksum(id_number: str) -> bool:
+        """Basic RSA ID checksum validation"""
+        try:
+            digits = [int(d) for d in id_number[:12]]
+            check_digit = int(id_number[12])
+            
+            total = 0
+            for i, digit in enumerate(digits):
+                if i % 2 == 1:
+                    doubled = digit * 2
+                    total += doubled if doubled < 10 else doubled - 9
+                else:
+                    total += digit
+            
+            calculated_check = (10 - (total % 10)) % 10
+            return calculated_check == check_digit
+        except (ValueError, IndexError):
+            return False
+
+
+class PersonAliasCreate(PersonAliasBase):
+    """Schema for creating person alias"""
+    pass
+
+
+class PersonAliasUpdate(BaseModel):
+    """Schema for updating person alias"""
+    id_document_type_code: Optional[IdentificationType] = None
+    id_document_number: Optional[str] = Field(None, max_length=13)
+    country_of_issue: Optional[str] = Field(None, max_length=3)
+    name_in_document: Optional[str] = Field(None, max_length=200)
+    alias_status: Optional[str] = Field(None, regex="^[123]$")
+    is_current: Optional[bool] = None
+
+
+class PersonAliasResponse(PersonAliasBase, TimestampMixin):
+    """Schema for person alias response"""
+    id: str
+    person_id: str
+
     class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+# Natural Person Schemas
+class NaturalPersonBase(BaseModel):
+    """
+    Base natural person schema - implements validation V00056, V00059, V00062, V00065, V00067
+    Only for person_nature 01 (Male) and 02 (Female)
+    """
+    full_name_1: str = Field(..., min_length=1, max_length=32, description="First name (NATPER.FULLNAME1) - V00056: Mandatory")
+    full_name_2: Optional[str] = Field(None, max_length=32, description="Middle name (NATPER.FULLNAME2) - V00059: Optional")
+    full_name_3: Optional[str] = Field(None, max_length=32, description="Additional name (NATPER.FULLNAME3) - V00062: Optional")
+    birth_date: Optional[date] = Field(None, description="Date of birth (NATPER.BIRTHD) - V00065: Optional, auto-derived from RSA ID")
+    email_address: Optional[EmailStr] = Field(None, description="Personal email (NATPER.EMAILADDR)")
+    preferred_language_code: Optional[str] = Field(None, max_length=10, description="Language preference (NATPER.PREFLANGCD) - V00068: Mandatory")
+
+    @validator('birth_date')
+    def validate_birth_date(cls, v):
+        """
+        Implements V00067: Birth date validation
+        """
+        if v:
+            # V00067: Not future date
+            if v > date.today():
+                raise ValueError('Birth date cannot be in the future (V00067)')
+            if v < date(1900, 1, 1):
+                raise ValueError('Birth date cannot be before 1900')
+        return v
+
+
+class NaturalPersonCreate(NaturalPersonBase):
+    """Schema for creating natural person"""
+    pass
+
+
+class NaturalPersonUpdate(BaseModel):
+    """Schema for updating natural person"""
+    full_name_1: Optional[str] = Field(None, max_length=32)
+    full_name_2: Optional[str] = Field(None, max_length=32)
+    full_name_3: Optional[str] = Field(None, max_length=32)
+    birth_date: Optional[date] = None
+    email_address: Optional[EmailStr] = None
+    preferred_language_code: Optional[str] = Field(None, max_length=10)
+
+
+class NaturalPersonResponse(NaturalPersonBase, TimestampMixin):
+    """Schema for natural person response"""
+    id: str
+    person_id: str
+    full_name: str = Field(description="Complete full name")
+    age: int = Field(description="Current age")
+    gender: Optional[str] = Field(description="Gender derived from person.person_nature")
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+# Person Address Schemas
+class PersonAddressBase(BaseModel):
+    """
+    CORRECTED: Person address schema - matches documentation structure
+    Implements separate street/postal address structure as per PER.STREETADDR1-5 and PER.POSTADDR1-5
+    Implements validation V00095, V00098, V00101, V00107
+    """
+    address_type: AddressType = Field(..., description="street or postal address type")
+    is_primary: bool = Field(default=False, description="Primary address of this type")
+    
+    # Address structure matches documentation exactly
+    address_line_1: str = Field(..., min_length=1, max_length=35, description="Address line 1 (PER.STREETADDR1/POSTADDR1)")
+    address_line_2: Optional[str] = Field(None, max_length=35, description="Address line 2 (PER.STREETADDR2/POSTADDR2)")
+    address_line_3: Optional[str] = Field(None, max_length=35, description="Address line 3 (PER.STREETADDR3/POSTADDR3)")
+    address_line_4: Optional[str] = Field(None, max_length=35, description="Address line 4 - suburb (PER.STREETADDR4/POSTADDR4)")
+    address_line_5: Optional[str] = Field(None, max_length=35, description="Address line 5 - city/town (PER.STREETADDR5/POSTADDR5)")
+    
+    # CORRECTED: Postal code structure
+    postal_code: Optional[str] = Field(None, max_length=4, regex="^[0-9]{4}$", description="4-digit postal code (PER.POSTCDSTREET/POSTCDPOST)")
+    
+    country_code: str = Field(default="ZA", max_length=3, description="Country code")
+    province_code: Optional[str] = Field(None, max_length=10, description="Province code")
+
+    @root_validator
+    def validate_address_rules(cls, values):
+        """
+        Implements address validation rules V00095, V00098, V00107
+        """
+        address_type = values.get('address_type')
+        address_line_1 = values.get('address_line_1')
+        postal_code = values.get('postal_code')
+        
+        # V00095: Line 1 mandatory for postal addresses
+        if address_type == AddressType.POSTAL and (not address_line_1 or address_line_1.strip() == ""):
+            raise ValueError('Postal address line 1 is mandatory (V00095)')
+        
+        # V00098: Postal code mandatory for postal addresses
+        if address_type == AddressType.POSTAL and (not postal_code or postal_code.strip() == ""):
+            raise ValueError('Postal code is mandatory for postal addresses (V00098)')
+        
+        # V00107: Postal code mandatory if street address entered
+        if address_type == AddressType.STREET and address_line_1 and (not postal_code or postal_code.strip() == ""):
+            raise ValueError('Postal code is mandatory if street address entered (V00107)')
+        
+        return values
+
+
+class PersonAddressCreate(PersonAddressBase):
+    """Schema for creating person address"""
+    pass
+
+
+class PersonAddressUpdate(BaseModel):
+    """Schema for updating person address"""
+    address_type: Optional[AddressType] = None
+    is_primary: Optional[bool] = None
+    address_line_1: Optional[str] = Field(None, max_length=35)
+    address_line_2: Optional[str] = Field(None, max_length=35)
+    address_line_3: Optional[str] = Field(None, max_length=35)
+    address_line_4: Optional[str] = Field(None, max_length=35)
+    address_line_5: Optional[str] = Field(None, max_length=35)
+    postal_code: Optional[str] = Field(None, max_length=4, regex="^[0-9]{4}$")
+    country_code: Optional[str] = Field(None, max_length=3)
+    province_code: Optional[str] = Field(None, max_length=10)
+
+
+class PersonAddressResponse(PersonAddressBase, TimestampMixin):
+    """Schema for person address response"""
+    id: str
+    person_id: str
+    is_verified: bool
+    verified_date: Optional[datetime] = None
+    suburb_validated: bool = Field(description="Suburb validated against ADDRCORR")
+    city_validated: bool = Field(description="City validated against ADDRCORR")
+    formatted_address: str = Field(description="Formatted address string")
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+# Organization Schema
+class OrganizationBase(BaseModel):
+    """
+    Organization-specific details for business entities
+    For person_nature 03-17 (non-natural persons)
+    """
+    trading_name: Optional[str] = Field(None, max_length=32, description="Trading name if different from registered name")
+    registration_date: Optional[date] = Field(None, description="Date of registration")
+    representative_person_id: Optional[str] = Field(None, description="Organization representative")
+    proxy_person_id: Optional[str] = Field(None, description="Organization proxy")
+    local_authority_code: Optional[str] = Field(None, max_length=10, description="Local authority code (LtAutCd)")
+    dcee_address: Optional[str] = Field(None, max_length=10, description="DCEE address (LmDCEEAddr)")
+    resident_at_ra: bool = Field(default=True, description="Resident at this RA")
+    movement_restricted: bool = Field(default=False, description="Movement between RAs restricted (V01768)")
+
+
+class OrganizationCreate(OrganizationBase):
+    """Schema for creating organization"""
+    pass
+
+
+class OrganizationResponse(OrganizationBase, TimestampMixin):
+    """Schema for organization response"""
+    id: str
+    person_id: str
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+
+# Person Schemas
+class PersonBase(BaseModel):
+    """
+    CORRECTED: Base person schema - matches documentation exactly
+    """
+    business_or_surname: str = Field(..., min_length=1, max_length=32, description="Business name or surname (PER.BUSORSURNAME)")
+    initials: Optional[str] = Field(None, max_length=3, regex="^[A-Z]*$", description="Initials for natural persons (PER.INITIALS)")
+    
+    # CORRECTED: person_nature instead of person_type
+    person_nature: PersonNature = Field(..., description="Person nature from LmNatOfPer (PER.NATOFPER)")
+    
+    nationality_code: str = Field(default="ZA", max_length=3, description="Nationality code (PER.NATNPOPGRPCD)")
+    email_address: Optional[EmailStr] = Field(None, description="Email address (NATPER.EMAILADDR)")
+    
+    # Phone numbers from NATPER table
+    home_phone_code: Optional[str] = Field(None, max_length=10, description="Home phone area code (NATPER.HTELCD)")
+    home_phone_number: Optional[str] = Field(None, max_length=10, description="Home phone number (NATPER.HTELN)")
+    work_phone_code: Optional[str] = Field(None, max_length=10, description="Work phone area code (NATPER.WTELCD)")
+    work_phone_number: Optional[str] = Field(None, max_length=15, description="Work phone number (NATPER.WTELN)")
+    cell_phone: Optional[str] = Field(None, max_length=15, description="Cell phone number (NATPER.CELLN)")
+    fax_code: Optional[str] = Field(None, max_length=10, description="Fax area code (NATPER.FAXCD)")
+    fax_number: Optional[str] = Field(None, max_length=10, description="Fax number (NATPER.FAXN)")
+    
+    preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
+    current_status_alias: str = Field(default="1", regex="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
+
+    @validator('initials')
+    def validate_initials(cls, v, values):
+        """Validate initials for natural persons only"""
+        person_nature = values.get('person_nature')
+        if v and person_nature not in [PersonNature.MALE, PersonNature.FEMALE]:
+            raise ValueError('Initials only applicable to natural persons')
+        return v
+
+    @validator('person_nature')
+    def validate_person_nature_for_context(cls, v, values):
+        """
+        Implements V00485: Must be natural person (when required)
+        """
+        # This validation will be context-specific in the service layer
+        return v
+
+
+class PersonCreate(PersonBase):
+    """
+    Schema for creating person - implements nested creation
+    """
+    # Optional nested creation
+    natural_person: Optional[NaturalPersonCreate] = Field(None, description="Natural person details (for person_nature 01,02)")
+    organization: Optional[OrganizationCreate] = Field(None, description="Organization details (for person_nature 03-17)")
+    aliases: Optional[List[PersonAliasCreate]] = Field(default_factory=list, description="ID documents")
+    addresses: Optional[List[PersonAddressCreate]] = Field(default_factory=list, description="Addresses")
+
+    @root_validator
+    def validate_person_data(cls, values):
+        """
+        Comprehensive person creation validation
+        """
+        person_nature = values.get('person_nature')
+        natural_person = values.get('natural_person')
+        organization = values.get('organization')
+        
+        # V00485: Natural person validation
+        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+            if not natural_person:
+                raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
+            if organization:
+                raise ValueError('Organization details not applicable for natural persons')
+        else:
+            # Organization
+            if natural_person:
+                raise ValueError('Natural person details not applicable for organizations')
+            # Organization details are optional for now
+        
+        return values
+
+
+class PersonUpdate(BaseModel):
+    """Schema for updating person"""
+    business_or_surname: Optional[str] = Field(None, max_length=32)
+    initials: Optional[str] = Field(None, max_length=3, regex="^[A-Z]*$")
+    nationality_code: Optional[str] = Field(None, max_length=3)
+    email_address: Optional[EmailStr] = None
+    home_phone_code: Optional[str] = Field(None, max_length=10)
+    home_phone_number: Optional[str] = Field(None, max_length=10)
+    work_phone_code: Optional[str] = Field(None, max_length=10)
+    work_phone_number: Optional[str] = Field(None, max_length=15)
+    cell_phone: Optional[str] = Field(None, max_length=15)
+    fax_code: Optional[str] = Field(None, max_length=10)
+    fax_number: Optional[str] = Field(None, max_length=10)
+    preferred_language: Optional[str] = Field(None, max_length=10)
+    current_status_alias: Optional[str] = Field(None, regex="^[123]$")
+    is_active: Optional[bool] = None
+
+
+class PersonResponse(PersonBase, TimestampMixin):
+    """Schema for person response"""
+    id: str
+    is_active: bool
+    natural_person: Optional[NaturalPersonResponse] = None
+    organization: Optional[OrganizationResponse] = None
+    aliases: List[PersonAliasResponse] = Field(default_factory=list)
+    addresses: List[PersonAddressResponse] = Field(default_factory=list)
+
+    @validator('id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID to string for API response"""
+        return str(v) if v else None
+
+    class Config:
+        orm_mode = True
         from_attributes = True
 
 
 class PersonListResponse(BaseModel):
-    """Response model for person search results"""
-    persons: List[PersonResponse]
-    total_count: int
-    page: int = 1
-    page_size: int = 20
+    """Schema for person list response"""
+    id: str
+    business_or_surname: str
+    initials: Optional[str] = None
+    person_nature: PersonNature
+    email_address: Optional[str] = None
+    cell_phone: Optional[str] = None
+    is_active: bool
+    created_at: datetime
 
+    @validator('id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        return str(v) if v else None
 
-class ValidationResult(BaseModel):
-    """Validation result for business rules"""
-    is_valid: bool
-    code: str
-    message: str
-    
     class Config:
-        json_schema_extra = {
-            "example": {
-                "is_valid": False,
-                "code": "V00001",
-                "message": "Identification type is mandatory"
-            }
-        }
+        orm_mode = True
+        from_attributes = True
+
+
+class PersonSearchRequest(BaseModel):
+    """Schema for person search request"""
+    # Text search fields
+    name: Optional[str] = Field(None, description="Search in names")
+    id_number: Optional[str] = Field(None, description="Search by ID number")
+    email: Optional[str] = Field(None, description="Search by email")
+    phone: Optional[str] = Field(None, description="Search by phone number")
+    
+    # Filter fields
+    person_nature: Optional[PersonNature] = None
+    nationality_code: Optional[str] = None
+    is_active: Optional[bool] = None
+    
+    # Pagination
+    skip: int = Field(default=0, ge=0, description="Number of records to skip")
+    limit: int = Field(default=20, ge=1, le=100, description="Number of records to return")
+    
+    # Sorting
+    order_by: Optional[str] = Field(default="created_at", description="Field to order by")
+    order_direction: Optional[str] = Field(default="desc", regex="^(asc|desc)$", description="Order direction")
+
+
+class PersonSearchResponse(BaseModel):
+    """Schema for person search response"""
+    persons: List[PersonListResponse]
+    total: int
+    skip: int
+    limit: int
+    has_next: bool
+    has_previous: bool
+
+
+class PersonValidationRequest(BaseModel):
+    """Schema for person validation request"""
+    person_id: str
+    validation_notes: Optional[str] = None
 
 
 class PersonValidationResponse(BaseModel):
-    """Response for person validation"""
-    person_id: Optional[str]
-    validation_results: List[ValidationResult]
+    """Schema for person validation response"""
+    person_id: str
     is_valid: bool
-    
-    @validator('is_valid', always=True)
-    def check_overall_validity(cls, v, values):
-        """Check if all validations passed"""
-        if 'validation_results' in values:
-            return all(result.is_valid for result in values['validation_results'])
-        return v 
+    validation_errors: List[str] = Field(default_factory=list)
+    validation_warnings: List[str] = Field(default_factory=list)
+    validation_codes: List[str] = Field(default_factory=list, description="Applied validation codes (V00001-V00019)")
+
+
+class PersonBulkCreateRequest(BaseModel):
+    """Schema for bulk person creation"""
+    persons: List[PersonCreate] = Field(..., max_items=50, description="List of persons to create")
+
+
+class PersonBulkCreateResponse(BaseModel):
+    """Schema for bulk person creation response"""
+    created_count: int
+    failed_count: int
+    created_persons: List[PersonResponse] = Field(default_factory=list)
+    errors: List[Dict[str, Any]] = Field(default_factory=list) 

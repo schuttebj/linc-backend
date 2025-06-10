@@ -2,7 +2,7 @@
 
 from .base import BaseModel
 from .enums import *
-from .person import Person, PersonAddress
+from .person import Person, PersonAddress, PersonAlias, NaturalPerson
 from .license import (
     LicenseApplication, 
     LicenseCard, 
@@ -17,6 +17,8 @@ __all__ = [
     "BaseModel",
     "Person", 
     "PersonAddress",
+    "PersonAlias",
+    "NaturalPerson",
     "LicenseApplication",
     "LicenseCard", 
     "ApplicationPayment",

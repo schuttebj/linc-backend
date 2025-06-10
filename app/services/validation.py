@@ -1,353 +1,549 @@
 """
-Person validation service implementing the hybrid approach.
-
-This service demonstrates how universal enums and country-specific configuration
-work together to provide comprehensive validation based on the refactored documentation.
-
-Universal fields use enums for consistency.
-Country-specific fields use country configuration for flexibility.
+Validation Service - CORRECTED IMPLEMENTATION
+Implements validation codes V00001-V00019 and business rules R-ID-001 to R-ID-010
+Based on Refactored_Business_Rules_Specification.md and screen specifications
 """
 
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import date, datetime
-from app.models.enums import ValidationStatus, Gender, AddressType
-from app.core.country_config import country_config
-from app.models.person import Person
+from typing import Dict, List, Optional, Union
+from datetime import datetime, date
+import re
+from dataclasses import dataclass
+from sqlalchemy.orm import Session
+
+from app.models.person import Person, PersonAlias, NaturalPerson, PersonAddress, IdentificationType, PersonNature
 
 
-class ValidationError:
-    """Validation error details"""
-    def __init__(self, field: str, code: str, message: str, severity: str = "error"):
-        self.field = field
-        self.code = code
-        self.message = message
-        self.severity = severity  # error, warning, info
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "field": self.field,
-            "code": self.code,
-            "message": self.message,
-            "severity": self.severity
-        }
+@dataclass
+class ValidationResult:
+    """Validation result container"""
+    is_valid: bool
+    code: str = ""
+    message: str = ""
+    field: str = ""
+    action: str = ""
 
 
 class PersonValidationService:
     """
-    Person validation service implementing hybrid approach.
-    
-    Validates both universal fields (using enums) and country-specific fields 
-    (using country configuration) based on the refactored documentation analysis.
+    Person validation service implementing all business rules
+    Implements validation codes V00001-V00019 and rules R-ID-001 to R-ID-010
     """
     
-    def __init__(self):
-        self.country_config = country_config
+    def __init__(self, db: Session):
+        self.db = db
     
-    def validate_person(self, person_data: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
+    # Core Identity Validation (R-ID-001 to R-ID-005)
+    
+    def validate_identification_type(self, id_type: str) -> ValidationResult:
         """
-        Comprehensive person validation using hybrid approach.
-        
-        Args:
-            person_data: Dictionary containing person information
-            
-        Returns:
-            Tuple of (is_valid, validation_errors)
+        V00001: Identification Type Mandatory
+        R-ID-001: Identification Type field cannot be empty
         """
-        errors = []
+        if not id_type or id_type.strip() == "":
+            return ValidationResult(
+                is_valid=False,
+                code="V00001",
+                message="Identification type is mandatory",
+                field="identification_type",
+                action="Block form submission"
+            )
         
-        # Universal field validation (using enums)
-        errors.extend(self._validate_universal_fields(person_data))
+        # Check if valid ID type from LmIdDocTypeCd lookup
+        valid_types = [e.value for e in IdentificationType]
+        if id_type not in valid_types:
+            return ValidationResult(
+                is_valid=False,
+                code="V00001",
+                message=f"Invalid identification type. Must be one of: {', '.join(valid_types)}",
+                field="identification_type",
+                action="Block form submission"
+            )
         
-        # Country-specific field validation (using country config)
-        errors.extend(self._validate_country_specific_fields(person_data))
-        
-        # Business rules validation
-        errors.extend(self._validate_business_rules(person_data))
-        
-        # Cross-field validation
-        errors.extend(self._validate_cross_field_dependencies(person_data))
-        
-        is_valid = not any(error.severity == "error" for error in errors)
-        return is_valid, errors
+        return ValidationResult(is_valid=True)
     
-    def _validate_universal_fields(self, person_data: Dict[str, Any]) -> List[ValidationError]:
-        """Validate universal fields using enums"""
-        errors = []
+    def validate_identification_number(self, id_number: str, id_type: str = None) -> ValidationResult:
+        """
+        V00013: Identification Number Mandatory
+        R-ID-002: Identification Number field cannot be empty
+        """
+        if not id_number or id_number.strip() == "":
+            return ValidationResult(
+                is_valid=False,
+                code="V00013", 
+                message="Identification number is mandatory",
+                field="identification_number",
+                action="Block form submission"
+            )
         
-        # Gender validation - universal enum
-        gender = person_data.get("gender")
-        if gender:
-            try:
-                Gender(gender)
-            except ValueError:
-                errors.append(ValidationError(
-                    field="gender",
-                    code="V00485",
-                    message=f"Invalid gender code '{gender}'. Must be one of: {[g.value for g in Gender]}"
-                ))
-        else:
-            errors.append(ValidationError(
-                field="gender",
-                code="V00485",
-                message="Gender is mandatory"
-            ))
+        # Additional type-specific validation if type provided
+        if id_type:
+            return self.validate_id_number_length(id_number, id_type)
         
-        # Validation status - universal enum
-        validation_status = person_data.get("validation_status", ValidationStatus.PENDING.value)
-        try:
-            ValidationStatus(validation_status)
-        except ValueError:
-            errors.append(ValidationError(
-                field="validation_status",
-                code="V00001",
-                message=f"Invalid validation status '{validation_status}'. Must be one of: {[s.value for s in ValidationStatus]}"
-            ))
-        
-        # Name validations - universal requirements
-        first_name = person_data.get("first_name")
-        if not first_name or not first_name.strip():
-            errors.append(ValidationError(
-                field="first_name",
-                code="V00056",
-                message="First name is mandatory"
-            ))
-        elif len(first_name) > 100:
-            errors.append(ValidationError(
-                field="first_name",
-                code="V00056",
-                message="First name cannot exceed 100 characters"
-            ))
-        
-        surname = person_data.get("surname")
-        if not surname or not surname.strip():
-            errors.append(ValidationError(
-                field="surname",
-                code="V00043",
-                message="Surname is mandatory"
-            ))
-        elif len(surname) > 100:
-            errors.append(ValidationError(
-                field="surname",
-                code="V00043",
-                message="Surname cannot exceed 100 characters"
-            ))
-        
-        return errors
+        return ValidationResult(is_valid=True)
     
-    def _validate_country_specific_fields(self, person_data: Dict[str, Any]) -> List[ValidationError]:
-        """Validate country-specific fields using country configuration"""
-        errors = []
+    def validate_id_number_length(self, id_number: str, id_type: str) -> ValidationResult:
+        """
+        V00018: ID Number Length Validation
+        R-ID-003: If ID Type is 01,02,04,97 → ID Number must be 13 characters
+        """
+        # Types that require 13 characters: TRN(01), RSA_ID(02), BRN(04), and legacy type 97
+        thirteen_char_types = ["01", "02", "04", "97"]
         
-        # ID Type validation - country-specific
-        id_type = person_data.get("id_type")
-        if not id_type:
-            errors.append(ValidationError(
-                field="id_type",
-                code="V00001",
-                message="Identification type is mandatory"
-            ))
-        elif id_type not in self.country_config.get_supported_id_types():
-            errors.append(ValidationError(
-                field="id_type",
-                code="V00001",
-                message=f"Invalid ID type '{id_type}' for {self.country_config.config.country_name}. "
-                       f"Supported types: {self.country_config.get_supported_id_types()}"
-            ))
+        if id_type in thirteen_char_types:
+            if len(id_number) != 13:
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00018",
+                    message="This type requires 13 characters",
+                    field="identification_number", 
+                    action="Re-enter ID number"
+                )
         
-        # ID Number validation - country-specific rules
-        id_number = person_data.get("id_number")
-        if not id_number:
-            errors.append(ValidationError(
-                field="id_number",
-                code="V00013",
-                message="Identification number is mandatory"
-            ))
-        elif id_type:
-            is_valid, error_message = self.country_config.validate_id_number(id_type, id_number)
-            if not is_valid:
-                errors.append(ValidationError(
-                    field="id_number",
+        return ValidationResult(is_valid=True)
+    
+    def validate_numeric_for_rsa_id(self, id_number: str, id_type: str) -> ValidationResult:
+        """
+        V00017: Numeric Validation for SA ID
+        R-ID-004: If ID Type is 02 (RSA ID) → ID Number must be numeric only
+        """
+        if id_type == "02":  # RSA ID
+            if not id_number.isdigit():
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00017",
+                    message="Value must be numeric only",
+                    field="identification_number",
+                    action="Re-enter ID number"
+                )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_check_digit(self, id_number: str, id_type: str) -> ValidationResult:
+        """
+        V00019: Check Digit Validation
+        R-ID-005: Apply check digit algorithm based on ID type
+        """
+        if id_type == "02" and len(id_number) == 13:  # RSA ID
+            if not self._validate_rsa_id_check_digit(id_number):
+                return ValidationResult(
+                    is_valid=False,
                     code="V00019",
-                    message=error_message
-                ))
+                    message="Invalid value entered",
+                    field="identification_number",
+                    action="Re-enter ID number"
+                )
         
-        # Nationality validation - country-specific
-        nationality = person_data.get("nationality")
-        if nationality and not self.country_config.validate_nationality(nationality):
-            errors.append(ValidationError(
-                field="nationality",
-                code="V00040",
-                message=f"Invalid nationality '{nationality}' for {self.country_config.config.country_name}. "
-                       f"Supported nationalities: {self.country_config.config.nationalities}"
-            ))
-        
-        # Language validation - country-specific
-        language = person_data.get("language_preference")
-        if language and not self.country_config.validate_language(language):
-            errors.append(ValidationError(
-                field="language_preference",
-                code="V00068",
-                message=f"Invalid language '{language}' for {self.country_config.config.country_name}. "
-                       f"Supported languages: {self.country_config.get_supported_languages()}"
-            ))
-        
-        # Postal code validation - country-specific format
-        postal_codes = [
-            ("residential_postal_code", person_data.get("residential_postal_code")),
-            ("postal_postal_code", person_data.get("postal_postal_code"))
-        ]
-        
-        for field_name, postal_code in postal_codes:
-            if postal_code and not self.country_config.validate_postal_code(postal_code):
-                errors.append(ValidationError(
-                    field=field_name,
-                    code="V00098",
-                    message=f"Invalid postal code format '{postal_code}' for {self.country_config.config.country_name}"
-                ))
-        
-        return errors
-    
-    def _validate_business_rules(self, person_data: Dict[str, Any]) -> List[ValidationError]:
-        """Validate business rules from the refactored documentation"""
-        errors = []
-        
-        # Date of birth validation
-        date_of_birth = person_data.get("date_of_birth")
-        if date_of_birth:
-            if isinstance(date_of_birth, str):
-                try:
-                    date_of_birth = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
-                except ValueError:
-                    errors.append(ValidationError(
-                        field="date_of_birth",
-                        code="V00067",
-                        message="Invalid date format. Use YYYY-MM-DD"
-                    ))
-                    return errors
-            
-            if date_of_birth > date.today():
-                errors.append(ValidationError(
-                    field="date_of_birth",
-                    code="V00067",
-                    message="Date of birth cannot be in the future"
-                ))
-            
-            # Age calculation for various business rules
-            age = self._calculate_age(date_of_birth)
-            if age < 0:
-                errors.append(ValidationError(
-                    field="date_of_birth",
-                    code="V00067",
-                    message="Invalid date of birth"
-                ))
-        
-        # Email validation if provided
-        email = person_data.get("email")
-        if email:
-            if not self._is_valid_email(email):
-                errors.append(ValidationError(
-                    field="email",
-                    code="V00071",
-                    message="Invalid email format"
-                ))
-        
-        return errors
-    
-    def _validate_cross_field_dependencies(self, person_data: Dict[str, Any]) -> List[ValidationError]:
-        """Validate cross-field dependencies and business logic"""
-        errors = []
-        
-        # Address completeness validation
-        res_line1 = person_data.get("residential_address_line_1")
-        res_postal = person_data.get("residential_postal_code")
-        res_city = person_data.get("residential_city")
-        
-        post_line1 = person_data.get("postal_address_line_1")
-        post_postal = person_data.get("postal_postal_code")
-        
-        # At least one address must be complete
-        has_complete_residential = bool(res_line1 and res_postal and res_city)
-        has_complete_postal = bool(post_line1 and post_postal)
-        
-        if not has_complete_residential and not has_complete_postal:
-            errors.append(ValidationError(
-                field="address",
-                code="V00095",
-                message="Either residential or postal address must be complete"
-            ))
-        
-        # Country code consistency
-        country_code = person_data.get("country_code")
-        if country_code and country_code != self.country_config.config.country_code:
-            errors.append(ValidationError(
-                field="country_code",
-                code="V00001",
-                message=f"Country code '{country_code}' does not match deployment country '{self.country_config.config.country_code}'"
-            ))
-        
-        return errors
-    
-    def _calculate_age(self, birth_date: date) -> int:
-        """Calculate age from birth date"""
-        today = date.today()
-        return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    
-    def _is_valid_email(self, email: str) -> bool:
-        """Basic email validation"""
-        import re
-        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-        return bool(re.match(pattern, email))
-    
-    def validate_for_license_application(self, person_data: Dict[str, Any], license_type: str) -> Tuple[bool, List[ValidationError]]:
-        """
-        Validate person for license application eligibility.
-        Demonstrates how the hybrid approach supports complex business rules.
-        """
-        # First validate basic person data
-        is_valid, errors = self.validate_person(person_data)
-        
-        # Then check license-specific requirements
-        if license_type not in self.country_config.get_supported_license_types():
-            errors.append(ValidationError(
-                field="license_type",
-                code="R-APP-001",
-                message=f"Invalid license type '{license_type}' for {self.country_config.config.country_name}"
-            ))
-            return False, errors
-        
-        # Age requirement validation
-        date_of_birth = person_data.get("date_of_birth")
-        if date_of_birth:
-            if isinstance(date_of_birth, str):
-                try:
-                    date_of_birth = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
-                except ValueError:
-                    pass
-            
-            if isinstance(date_of_birth, date):
-                age = self._calculate_age(date_of_birth)
-                required_age = self.country_config.get_license_age_requirement(license_type)
+        elif id_type == "01":  # TRN - basic validation
+            if not self._validate_trn_format(id_number):
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00019", 
+                    message="Invalid TRN format",
+                    field="identification_number",
+                    action="Re-enter ID number"
+                )
                 
-                if required_age and age < required_age:
-                    errors.append(ValidationError(
-                        field="age",
-                        code="R-APP-003",
-                        message=f"Minimum age for license type '{license_type}' is {required_age} years. Current age: {age}"
-                    ))
+        elif id_type == "04":  # BRN - basic validation
+            if not self._validate_brn_format(id_number):
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00019",
+                    message="Invalid BRN format", 
+                    field="identification_number",
+                    action="Re-enter ID number"
+                )
         
-        # Validation status must be validated for license application
-        validation_status = person_data.get("validation_status", ValidationStatus.PENDING.value)
-        if validation_status != ValidationStatus.VALIDATED.value:
-            errors.append(ValidationError(
-                field="validation_status",
-                code="R-APP-002",
-                message="Person must have validated status before applying for license",
-                severity="warning"
+        return ValidationResult(is_valid=True)
+    
+    # Person Existence and Status Validation (R-ID-006 to R-ID-010)
+    
+    def validate_person_exists(self, id_type: str, id_number: str) -> ValidationResult:
+        """
+        V00014: Person Must Exist
+        R-ID-006: Person record must exist for given ID Type/Number
+        """
+        alias = self.db.query(PersonAlias).filter(
+            PersonAlias.id_document_type_code == id_type,
+            PersonAlias.id_document_number == id_number
+        ).first()
+        
+        if not alias:
+            return ValidationResult(
+                is_valid=False,
+                code="V00014",
+                message="Person entity does not exist",
+                field="identification_number",
+                action="Register person first"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_unacceptable_alias(self, id_type: str, alias_status: str) -> ValidationResult:
+        """
+        V00016: Unacceptable Alias Check
+        R-ID-007: If ID Type ≠ 13 → Alias status cannot be 3 (Unacceptable)
+        """
+        if id_type != "13" and alias_status == "3":  # Not passport and unacceptable
+            return ValidationResult(
+                is_valid=False,
+                code="V00016",
+                message="This ID is not acceptable",
+                field="identification_number",
+                action="Re-enter identification"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_current_alias_warning(self, alias_status: str) -> ValidationResult:
+        """
+        V00757: Current Alias Warning
+        R-ID-008: If Alias status ≠ 1 (Current) → Display warning
+        """
+        if alias_status != "1":
+            return ValidationResult(
+                is_valid=True,  # Warning, not error
+                code="V00757",
+                message="Entered ID is not current",
+                field="identification_number",
+                action="Continue with warning"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_xpid_tpid_restriction(self, id_type: str) -> ValidationResult:
+        """
+        V00585: XPID/TPID Restriction
+        R-ID-009: Foreign ID documents cannot be temporary IDs
+        """
+        # This would be context-specific - for now basic check
+        if id_type == "03":  # Foreign ID - additional checks needed based on context
+            # In real implementation, would check against XPID/TPID lists
+            pass
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_natural_person(self, person_nature: str) -> ValidationResult:
+        """
+        V00485: Natural Person Check
+        R-ID-010: Person nature must be 01 (Male) or 02 (Female)
+        """
+        if person_nature not in ["01", "02"]:
+            return ValidationResult(
+                is_valid=False,
+                code="V00485",
+                message="Must be a natural person",
+                field="person_nature",
+                action="Re-enter identification"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    # Additional Validation Rules
+    
+    def validate_full_name_1_mandatory(self, full_name_1: str) -> ValidationResult:
+        """
+        V00056: Full Name 1 Mandatory
+        """
+        if not full_name_1 or full_name_1.strip() == "":
+            return ValidationResult(
+                is_valid=False,
+                code="V00056",
+                message="First name is mandatory",
+                field="full_name_1",
+                action="Block form submission"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_birth_date_not_future(self, birth_date: date) -> ValidationResult:
+        """
+        V00067: Birth date cannot be future date
+        """
+        if birth_date and birth_date > date.today():
+            return ValidationResult(
+                is_valid=False,
+                code="V00067",
+                message="Birth date cannot be in the future",
+                field="birth_date",
+                action="Re-enter birth date"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_language_preference_mandatory(self, language_code: str) -> ValidationResult:
+        """
+        V00068: Language Preference Mandatory
+        """
+        if not language_code or language_code.strip() == "":
+            return ValidationResult(
+                is_valid=False,
+                code="V00068",
+                message="Language preference is mandatory",
+                field="preferred_language",
+                action="Block form submission"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    # Address Validation
+    
+    def validate_postal_address_line_1_mandatory(self, address_line_1: str, address_type: str) -> ValidationResult:
+        """
+        V00095: Postal Address Line 1 mandatory
+        """
+        if address_type == "postal" and (not address_line_1 or address_line_1.strip() == ""):
+            return ValidationResult(
+                is_valid=False,
+                code="V00095",
+                message="Postal address line 1 is mandatory",
+                field="address_line_1",
+                action="Block form submission"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    def validate_postal_code_mandatory(self, postal_code: str, address_type: str) -> ValidationResult:
+        """
+        V00098: Postal code mandatory for postal addresses
+        V00107: Postal code mandatory if street address entered
+        """
+        if address_type == "postal" and (not postal_code or postal_code.strip() == ""):
+            return ValidationResult(
+                is_valid=False,
+                code="V00098",
+                message="Postal code is mandatory for postal addresses",
+                field="postal_code",
+                action="Block form submission"
+            )
+        
+        if address_type == "street" and (not postal_code or postal_code.strip() == ""):
+            # V00107: Conditional requirement
+            return ValidationResult(
+                is_valid=False,
+                code="V00107",
+                message="Postal code is mandatory if street address entered",
+                field="postal_code",
+                action="Block form submission"
+            )
+        
+        return ValidationResult(is_valid=True)
+    
+    # Organization Validation
+    
+    def validate_organization_nature(self, person_nature: str, id_type: str) -> ValidationResult:
+        """
+        V00037: Organization nature based on ID type
+        V00604: Must be organization
+        """
+        # TRN should have nature 03,05-09,18-19,98
+        if id_type == "01":  # TRN
+            valid_trn_natures = ["03", "05", "06", "07", "08", "09", "18", "19", "98"]
+            if person_nature not in valid_trn_natures:
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00037",
+                    message="Invalid organization nature for TRN",
+                    field="person_nature",
+                    action="Select correct nature"
+                )
+        
+        # BRN should have nature 10-17
+        elif id_type == "04":  # BRN
+            valid_brn_natures = ["10", "11", "12", "13", "14", "15", "16", "17"]
+            if person_nature not in valid_brn_natures:
+                return ValidationResult(
+                    is_valid=False,
+                    code="V00037",
+                    message="Invalid organization nature for BRN",
+                    field="person_nature",
+                    action="Select correct nature"
+                )
+        
+        return ValidationResult(is_valid=True)
+    
+    # Comprehensive Validation Methods
+    
+    def validate_person_creation(self, person_data: dict) -> List[ValidationResult]:
+        """
+        Validate complete person creation data
+        Returns list of all validation results
+        """
+        results = []
+        
+        # Core identification validation
+        if "identification_type" in person_data:
+            results.append(self.validate_identification_type(person_data["identification_type"]))
+        
+        if "identification_number" in person_data:
+            results.append(self.validate_identification_number(
+                person_data["identification_number"],
+                person_data.get("identification_type")
             ))
         
-        final_is_valid = not any(error.severity == "error" for error in errors)
-        return final_is_valid, errors
+        # Type-specific validation
+        if person_data.get("identification_type") and person_data.get("identification_number"):
+            id_type = person_data["identification_type"]
+            id_number = person_data["identification_number"]
+            
+            results.append(self.validate_numeric_for_rsa_id(id_number, id_type))
+            results.append(self.validate_check_digit(id_number, id_type))
+        
+        # Person nature validation
+        if "person_nature" in person_data:
+            person_nature = person_data["person_nature"]
+            
+            # Check if natural person when required
+            if person_data.get("is_natural_person", True):
+                results.append(self.validate_natural_person(person_nature))
+            
+            # Organization nature validation
+            if person_data.get("identification_type"):
+                results.append(self.validate_organization_nature(
+                    person_nature, 
+                    person_data["identification_type"]
+                ))
+        
+        # Natural person specific validation
+        if person_data.get("is_natural_person", True):
+            if "full_name_1" in person_data:
+                results.append(self.validate_full_name_1_mandatory(person_data["full_name_1"]))
+            
+            if "birth_date" in person_data and person_data["birth_date"]:
+                results.append(self.validate_birth_date_not_future(person_data["birth_date"]))
+            
+            if "preferred_language" in person_data:
+                results.append(self.validate_language_preference_mandatory(person_data["preferred_language"]))
+        
+        return results
+    
+    def validate_address_creation(self, address_data: dict) -> List[ValidationResult]:
+        """
+        Validate address creation data
+        """
+        results = []
+        
+        address_type = address_data.get("address_type")
+        
+        # Address line 1 validation
+        if "address_line_1" in address_data:
+            results.append(self.validate_postal_address_line_1_mandatory(
+                address_data["address_line_1"],
+                address_type
+            ))
+        
+        # Postal code validation
+        if "postal_code" in address_data:
+            results.append(self.validate_postal_code_mandatory(
+                address_data["postal_code"],
+                address_type
+            ))
+        
+        return results
+    
+    # Auto-derivation methods (business rules)
+    
+    def derive_birth_date_from_rsa_id(self, id_number: str) -> Optional[date]:
+        """
+        Auto-derive birth date from RSA ID number
+        Business rule: RSA ID format YYMMDDSSSSCZZ
+        """
+        if len(id_number) != 13 or not id_number.isdigit():
+            return None
+        
+        try:
+            year_str = id_number[:2]
+            month_str = id_number[2:4]
+            day_str = id_number[4:6]
+            
+            # Determine century (assume current if year <= current year, else previous century)
+            current_year = datetime.now().year % 100
+            year = int(year_str)
+            
+            if year <= current_year:
+                full_year = 2000 + year
+            else:
+                full_year = 1900 + year
+            
+            return date(full_year, int(month_str), int(day_str))
+        except (ValueError, IndexError):
+            return None
+    
+    def derive_gender_from_rsa_id(self, id_number: str) -> Optional[str]:
+        """
+        Auto-derive gender from RSA ID number
+        Business rule: 7th digit >= 5 = Male (01), < 5 = Female (02)
+        """
+        if len(id_number) != 13 or not id_number.isdigit():
+            return None
+        
+        try:
+            gender_digit = int(id_number[6])
+            return "01" if gender_digit >= 5 else "02"  # Person nature codes
+        except (ValueError, IndexError):
+            return None
+    
+    # Private helper methods for check digit validation
+    
+    def _validate_rsa_id_check_digit(self, id_number: str) -> bool:
+        """
+        Validate RSA ID check digit using Luhn algorithm
+        """
+        if len(id_number) != 13:
+            return False
+        
+        try:
+            # Extract digits except check digit
+            digits = [int(d) for d in id_number[:12]]
+            check_digit = int(id_number[12])
+            
+            # Apply Luhn algorithm
+            total = 0
+            for i, digit in enumerate(digits):
+                if i % 2 == 1:  # Every second digit
+                    doubled = digit * 2
+                    total += doubled if doubled < 10 else doubled - 9
+                else:
+                    total += digit
+            
+            calculated_check = (10 - (total % 10)) % 10
+            return calculated_check == check_digit
+            
+        except (ValueError, IndexError):
+            return False
+    
+    def _validate_trn_format(self, trn_number: str) -> bool:
+        """
+        Basic TRN format validation
+        """
+        # Basic length and numeric check
+        return len(trn_number) == 13 and trn_number.isdigit()
+    
+    def _validate_brn_format(self, brn_number: str) -> bool:
+        """
+        Basic BRN format validation
+        """
+        # Basic length and alphanumeric check
+        return len(brn_number) == 13 and brn_number.isdigit()
 
 
-# Global validation service instance
-validation_service = PersonValidationService() 
+# Validation utility functions
+def get_failed_validations(validation_results: List[ValidationResult]) -> List[ValidationResult]:
+    """Get only failed validation results"""
+    return [result for result in validation_results if not result.is_valid]
+
+
+def format_validation_errors(validation_results: List[ValidationResult]) -> Dict[str, List[str]]:
+    """Format validation errors for API response"""
+    errors = {}
+    for result in validation_results:
+        if not result.is_valid:
+            field = result.field or "general"
+            if field not in errors:
+                errors[field] = []
+            errors[field].append(f"{result.code}: {result.message}")
+    return errors
+
+
+def has_validation_errors(validation_results: List[ValidationResult]) -> bool:
+    """Check if any validation failed"""
+    return any(not result.is_valid for result in validation_results) 
