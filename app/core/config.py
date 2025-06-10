@@ -63,10 +63,15 @@ class Settings(BaseSettings):
     DB_SSL_MODE: str = "prefer"  # prefer, require, disable
     
     # File Storage Configuration
-    FILE_STORAGE_BASE_PATH: str = "/var/linc-data"
+    FILE_STORAGE_PATH: str = "/var/linc-data"
     MAX_FILE_SIZE_MB: int = 10
-    ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/gif"
+    ALLOWED_IMAGE_TYPES: str = "image/jpeg,image/png,image/gif,image/bmp,image/tiff"
     ALLOWED_DOCUMENT_TYPES: str = "application/pdf,image/jpeg,image/png"
+    
+    # Backup Configuration
+    BACKUP_RETENTION_DAILY: int = 30  # Keep 30 daily backups
+    BACKUP_RETENTION_WEEKLY: int = 12  # Keep 12 weekly backups
+    ENABLE_AUTO_BACKUP: bool = True
     
     @property
     def allowed_image_types_list(self) -> List[str]:
@@ -111,7 +116,7 @@ class Settings(BaseSettings):
     
     def get_file_storage_path(self) -> Path:
         """Get file storage path for this deployment's country"""
-        return Path(self.FILE_STORAGE_BASE_PATH) / self.COUNTRY_CODE
+        return Path(self.FILE_STORAGE_PATH) / self.COUNTRY_CODE
 
 
 class CountryConfig(BaseSettings):

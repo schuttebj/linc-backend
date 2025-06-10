@@ -12,6 +12,7 @@ from .license import (
     LicenseType
 )
 from .user import User, Role, Permission, UserAuditLog, UserStatus
+from .audit import AuditLog, FileMetadata
 
 __all__ = [
     "BaseModel",
@@ -30,6 +31,8 @@ __all__ = [
     "Permission", 
     "UserAuditLog",
     "UserStatus",
+    "AuditLog",
+    "FileMetadata",
     # Enums
     "Gender",
     "IdDocumentType", 
