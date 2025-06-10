@@ -187,8 +187,7 @@ async def database_health_check():
 async def init_database():
     """Initialize database tables and basic data - ADMIN ONLY"""
     try:
-        from app.core.database import engine
-        from app.models import Base
+        from app.core.database import engine, Base
         
         # Create all tables
         Base.metadata.create_all(bind=engine)
