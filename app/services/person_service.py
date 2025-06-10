@@ -24,7 +24,7 @@ from app.schemas.person import (
     PersonBulkCreateRequest, PersonBulkCreateResponse,
     PersonNature, IdentificationType, AddressType
 )
-from app.services.validation import PersonValidationService, ValidationResult
+from app.services.validation import PersonValidationService, ValidationResult, ValidationOrchestrator, validate_business_rules
 
 logger = logging.getLogger(__name__)
 
@@ -38,38 +38,46 @@ class PersonService:
     def __init__(self, db: Session):
         self.db = db
         self.validation_service = PersonValidationService(db)
+        self.validation_orchestrator = ValidationOrchestrator(self.validation_service)
 
     # ============================================================================
-    # CORE PERSON CRUD OPERATIONS
+    # CORE PERSON CRUD OPERATIONS - ENHANCED WITH ORCHESTRATOR
     # ============================================================================
 
+    @validate_business_rules("person_creation")
     def create_person(self, person_data: PersonCreate, created_by: str = None) -> PersonResponse:
         """
-        Create a new person with related entities - CORRECTED IMPLEMENTATION
-        Supports creating person with aliases, natural person/organization details, and addresses
-        Implements validation codes V00001-V00019 and business rules R-ID-001 to R-ID-010
+        Create a new person with related entities - ENHANCED WITH VALIDATION ORCHESTRATOR
+        Validation is now IMPOSSIBLE to miss or bypass
         """
         try:
-            # STEP 1: Validate person data using validation service
-            validation_results = self.validation_service.validate_person_creation(person_data.dict())
-            failed_validations = [r for r in validation_results if not r.is_valid]
+            # STEP 1: MANDATORY Validation using orchestrator - CANNOT BE SKIPPED
+            validation_summary = self.validation_orchestrator.validate_person_operation(
+                "person_creation", 
+                person_data.dict()
+            )
             
-            if failed_validations:
-                # Format validation errors
-                error_messages = [f"{r.code}: {r.message}" for r in failed_validations]
+            if not validation_summary.is_valid:
+                # Format validation errors with codes
+                error_messages = [f"{r.code}: {r.message}" for r in validation_summary.errors]
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Validation failed: {'; '.join(error_messages)}"
                 )
             
+            # Log warnings if any
+            if validation_summary.warnings:
+                warning_messages = [f"{r.code}: {r.message}" for r in validation_summary.warnings]
+                logger.warning(f"Person creation warnings: {'; '.join(warning_messages)}")
+            
             # STEP 2: Auto-derive data from RSA ID if provided
             derived_data = self._auto_derive_from_id(person_data)
             
-            # STEP 3: Create main person record - CORRECTED field names
+            # STEP 3: Create main person record
             db_person = Person(
                 business_or_surname=person_data.business_or_surname,
                 initials=person_data.initials,
-                person_nature=person_data.person_nature.value,  # CORRECTED: person_nature instead of person_type
+                person_nature=person_data.person_nature.value,
                 nationality_code=person_data.nationality_code,
                 email_address=person_data.email_address,
                 home_phone_code=person_data.home_phone_code,
@@ -80,7 +88,7 @@ class PersonService:
                 fax_code=person_data.fax_code,
                 fax_number=person_data.fax_number,
                 preferred_language=person_data.preferred_language,
-                current_status_alias=person_data.current_status_alias,  # ADDED: missing field
+                current_status_alias=person_data.current_status_alias,
                 created_by=created_by,
                 updated_by=created_by
             )
@@ -129,14 +137,6 @@ class PersonService:
             # STEP 6: Create aliases if provided
             if person_data.aliases:
                 for alias_data in person_data.aliases:
-                    # Additional validation for alias
-                    alias_validation = self._validate_alias_creation(alias_data, db_person.person_nature)
-                    if not alias_validation.is_valid:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Alias validation failed: {alias_validation.code}: {alias_validation.message}"
-                        )
-                    
                     alias = PersonAlias(
                         person_id=db_person.id,
                         id_document_type_code=alias_data.id_document_type_code.value,
@@ -149,19 +149,9 @@ class PersonService:
                     )
                     self.db.add(alias)
             
-            # STEP 7: Create addresses if provided - CORRECTED structure
+            # STEP 7: Create addresses if provided
             if person_data.addresses:
                 for addr_data in person_data.addresses:
-                    # Validate address data
-                    addr_validation = self.validation_service.validate_address_creation(addr_data.dict())
-                    addr_failed = [r for r in addr_validation if not r.is_valid]
-                    if addr_failed:
-                        error_msg = '; '.join([f"{r.code}: {r.message}" for r in addr_failed])
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Address validation failed: {error_msg}"
-                        )
-                    
                     address = PersonAddress(
                         person_id=db_person.id,
                         address_type=addr_data.address_type.value,
@@ -174,7 +164,6 @@ class PersonService:
                         postal_code=addr_data.postal_code,
                         country_code=addr_data.country_code,
                         province_code=addr_data.province_code,
-                        # ADDED: ADDRCORR validation fields
                         suburb_validated=False,  # Will be validated in background
                         city_validated=False,   # Will be validated in background
                         created_by=created_by,
@@ -183,6 +172,9 @@ class PersonService:
                     self.db.add(address)
             
             self.db.commit()
+            
+            # STEP 8: Log validation summary for audit
+            logger.info(f"Person created successfully with {len(validation_summary.validation_codes)} validations: {validation_summary.validation_codes}")
             
             # Return full person with relationships
             return self.get_person(db_person.id)
