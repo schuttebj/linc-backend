@@ -353,9 +353,20 @@ async def check_storage_health(
 ):
     """Check storage health status"""
     try:
-        monitor = FileSystemMonitor(settings.COUNTRY_CODE)
-        health = monitor.check_storage_health()
+        # Get basic file storage health
+        health = file_storage.get_storage_health()
         
+        # If not in read-only mode, get detailed metrics
+        if not file_storage.read_only_mode:
+            try:
+                monitor = FileSystemMonitor(settings.COUNTRY_CODE)
+                detailed_health = monitor.check_storage_health()
+                health.update(detailed_health)
+            except Exception as e:
+                logger.warning(f"Could not get detailed storage metrics: {e}")
+                health["detailed_metrics_error"] = str(e)
+        
+        health["country_code"] = settings.COUNTRY_CODE
         return health
         
     except Exception as e:
@@ -363,7 +374,8 @@ async def check_storage_health(
         return {
             "status": "error",
             "error": str(e),
-            "country_code": settings.COUNTRY_CODE
+            "country_code": settings.COUNTRY_CODE,
+            "writable": False
         }
 
 @router.post("/backup/daily", response_model=BackupResponse)

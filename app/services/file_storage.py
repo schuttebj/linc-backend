@@ -13,6 +13,7 @@ import json
 import mimetypes
 import tarfile
 import asyncio
+import os
 from fastapi import UploadFile
 import structlog
 
@@ -28,7 +29,16 @@ class FileStorageService:
     
     def __init__(self, country_code: str):
         self.country_code = country_code.upper()
-        self.base_path = Path(settings.FILE_STORAGE_PATH) / self.country_code
+        self.read_only_mode = False
+        
+        # Use production-friendly storage path
+        if os.getenv("RENDER"):
+            # Render environment - use /tmp for temporary storage
+            self.base_path = Path("/tmp/linc-data") / self.country_code
+        else:
+            # Local/development environment
+            self.base_path = Path(settings.FILE_STORAGE_PATH) / self.country_code
+            
         self._ensure_directories()
     
     def _ensure_directories(self):
@@ -50,9 +60,27 @@ class FileStorageService:
             "backups/weekly",
             "backups/archive"
         ]
-        for directory in directories:
-            (self.base_path / directory).mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Ensured directory exists: {self.base_path / directory}")
+        
+        try:
+            # Try to create base directory first
+            self.base_path.mkdir(parents=True, exist_ok=True)
+            
+            # Create subdirectories
+            for directory in directories:
+                (self.base_path / directory).mkdir(parents=True, exist_ok=True)
+                logger.debug(f"Ensured directory exists: {self.base_path / directory}")
+                
+        except PermissionError as e:
+            # In production environments (like Render), we might not have write access
+            # Log the error but don't fail - fall back to in-memory or alternative storage
+            logger.warning(f"Cannot create file storage directories: {e}")
+            logger.info(f"File storage will operate in read-only mode or use alternative storage")
+            
+            # Set a flag to indicate limited file operations
+            self.read_only_mode = True
+        except Exception as e:
+            logger.error(f"Unexpected error creating directories: {e}")
+            self.read_only_mode = True
     
     def store_citizen_photo(self, citizen_id: str, image_data: BinaryIO, 
                            original_filename: str) -> Dict[str, Any]:
@@ -253,6 +281,15 @@ class FileStorageService:
         """Get MIME type from file extension"""
         mime_type, _ = mimetypes.guess_type(f"file{extension}")
         return mime_type or "application/octet-stream"
+    
+    def get_storage_health(self) -> Dict[str, Any]:
+        """Get file storage health status"""
+        return {
+            "status": "read_only" if self.read_only_mode else "operational",
+            "base_path": str(self.base_path),
+            "writable": not self.read_only_mode,
+            "exists": self.base_path.exists() if not self.read_only_mode else False
+        }
     
     def get_storage_metrics(self) -> Dict[str, Any]:
         """Get current storage utilization metrics"""
