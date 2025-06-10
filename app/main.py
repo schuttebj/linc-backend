@@ -227,14 +227,14 @@ async def init_users():
             
             # Create default permissions
             permissions = [
-                {"name": "person_view", "description": "View person records"},
-                {"name": "person_create", "description": "Create person records"},
-                {"name": "person_edit", "description": "Edit person records"},
-                {"name": "license_view", "description": "View license applications"},
-                {"name": "license_create", "description": "Create license applications"},
-                {"name": "license_approve", "description": "Approve license applications"},
-                {"name": "user_manage", "description": "Manage user accounts"},
-                {"name": "system_admin", "description": "System administration"}
+                {"name": "person_view", "display_name": "View Person Records", "description": "View person records", "category": "person", "resource": "person", "action": "read"},
+                {"name": "person_create", "display_name": "Create Person Records", "description": "Create person records", "category": "person", "resource": "person", "action": "create"},
+                {"name": "person_edit", "display_name": "Edit Person Records", "description": "Edit person records", "category": "person", "resource": "person", "action": "update"},
+                {"name": "license_view", "display_name": "View License Applications", "description": "View license applications", "category": "license", "resource": "license", "action": "read"},
+                {"name": "license_create", "display_name": "Create License Applications", "description": "Create license applications", "category": "license", "resource": "license", "action": "create"},
+                {"name": "license_approve", "display_name": "Approve License Applications", "description": "Approve license applications", "category": "license", "resource": "license", "action": "approve"},
+                {"name": "user_manage", "display_name": "Manage User Accounts", "description": "Manage user accounts", "category": "admin", "resource": "user", "action": "manage"},
+                {"name": "system_admin", "display_name": "System Administration", "description": "System administration", "category": "admin", "resource": "system", "action": "admin"}
             ]
             
             created_permissions = {}
@@ -242,8 +242,11 @@ async def init_users():
                 permission = Permission(
                     id=uuid.uuid4(),
                     name=perm_data["name"],
+                    display_name=perm_data["display_name"],
                     description=perm_data["description"],
-                    category="system",
+                    category=perm_data["category"],
+                    resource=perm_data["resource"],
+                    action=perm_data["action"],
                     created_at=datetime.utcnow(),
                     created_by="system"
                 )
@@ -254,7 +257,8 @@ async def init_users():
             admin_role = Role(
                 id=uuid.uuid4(),
                 name="super_admin",
-                description="Super Administrator",
+                display_name="Super Administrator",
+                description="Super Administrator with full system access",
                 is_system_role=True,
                 created_at=datetime.utcnow(),
                 created_by="system"
@@ -275,7 +279,7 @@ async def init_users():
                 password_hash=get_password_hash("Admin123!"),
                 status=UserStatus.ACTIVE,
                 is_superuser=True,
-                must_change_password=True,
+                require_password_change=True,
                 created_at=datetime.utcnow(),
                 created_by="system"
             )
