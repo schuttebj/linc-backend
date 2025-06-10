@@ -67,7 +67,7 @@ class PersonAliasBase(BaseModel):
     id_document_number: str = Field(..., min_length=1, max_length=13, description="ID document number (ALIAS.IDDOCN)")
     country_of_issue: str = Field(default="ZA", max_length=3, description="Country of issue (ALIAS.CNTRYOFISSID)")
     name_in_document: Optional[str] = Field(None, max_length=200, description="Name as in document (ALIAS.NAMEINDOC)")
-    alias_status: str = Field(default="1", regex="^[123]$", description="1=Current, 2=Historical, 3=Unacceptable")
+    alias_status: str = Field(default="1", pattern="^[123]$", description="1=Current, 2=Historical, 3=Unacceptable")
     is_current: bool = Field(default=True, description="Current/active alias")
 
     @validator('id_document_number')
@@ -151,7 +151,7 @@ class PersonAliasUpdate(BaseModel):
     id_document_number: Optional[str] = Field(None, max_length=13)
     country_of_issue: Optional[str] = Field(None, max_length=3)
     name_in_document: Optional[str] = Field(None, max_length=200)
-    alias_status: Optional[str] = Field(None, regex="^[123]$")
+    alias_status: Optional[str] = Field(None, pattern="^[123]$")
     is_current: Optional[bool] = None
 
 
@@ -238,7 +238,7 @@ class PersonAddressBase(BaseModel):
     address_line_5: Optional[str] = Field(None, max_length=35, description="Address line 5 - city/town (PER.STREETADDR5/POSTADDR5)")
     
     # CORRECTED: Postal code structure
-    postal_code: Optional[str] = Field(None, max_length=4, regex="^[0-9]{4}$", description="4-digit postal code (PER.POSTCDSTREET/POSTCDPOST)")
+    postal_code: Optional[str] = Field(None, max_length=4, pattern="^[0-9]{4}$", description="4-digit postal code (PER.POSTCDSTREET/POSTCDPOST)")
     
     country_code: str = Field(default="ZA", max_length=3, description="Country code")
     province_code: Optional[str] = Field(None, max_length=10, description="Province code")
@@ -281,7 +281,7 @@ class PersonAddressUpdate(BaseModel):
     address_line_3: Optional[str] = Field(None, max_length=35)
     address_line_4: Optional[str] = Field(None, max_length=35)
     address_line_5: Optional[str] = Field(None, max_length=35)
-    postal_code: Optional[str] = Field(None, max_length=4, regex="^[0-9]{4}$")
+    postal_code: Optional[str] = Field(None, max_length=4, pattern="^[0-9]{4}$")
     country_code: Optional[str] = Field(None, max_length=3)
     province_code: Optional[str] = Field(None, max_length=10)
 
@@ -338,7 +338,7 @@ class PersonBase(BaseModel):
     CORRECTED: Base person schema - matches documentation exactly
     """
     business_or_surname: str = Field(..., min_length=1, max_length=32, description="Business name or surname (PER.BUSORSURNAME)")
-    initials: Optional[str] = Field(None, max_length=3, regex="^[A-Z]*$", description="Initials for natural persons (PER.INITIALS)")
+    initials: Optional[str] = Field(None, max_length=3, pattern="^[A-Z]*$", description="Initials for natural persons (PER.INITIALS)")
     
     # CORRECTED: person_nature instead of person_type
     person_nature: PersonNature = Field(..., description="Person nature from LmNatOfPer (PER.NATOFPER)")
@@ -356,7 +356,7 @@ class PersonBase(BaseModel):
     fax_number: Optional[str] = Field(None, max_length=10, description="Fax number (NATPER.FAXN)")
     
     preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
-    current_status_alias: str = Field(default="1", regex="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
+    current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
 
     @validator('initials')
     def validate_initials(cls, v, values):
@@ -412,7 +412,7 @@ class PersonCreate(PersonBase):
 class PersonUpdate(BaseModel):
     """Schema for updating person"""
     business_or_surname: Optional[str] = Field(None, max_length=32)
-    initials: Optional[str] = Field(None, max_length=3, regex="^[A-Z]*$")
+    initials: Optional[str] = Field(None, max_length=3, pattern="^[A-Z]*$")
     nationality_code: Optional[str] = Field(None, max_length=3)
     email_address: Optional[EmailStr] = None
     home_phone_code: Optional[str] = Field(None, max_length=10)
@@ -423,7 +423,7 @@ class PersonUpdate(BaseModel):
     fax_code: Optional[str] = Field(None, max_length=10)
     fax_number: Optional[str] = Field(None, max_length=10)
     preferred_language: Optional[str] = Field(None, max_length=10)
-    current_status_alias: Optional[str] = Field(None, regex="^[123]$")
+    current_status_alias: Optional[str] = Field(None, pattern="^[123]$")
     is_active: Optional[bool] = None
 
 
@@ -485,7 +485,7 @@ class PersonSearchRequest(BaseModel):
     
     # Sorting
     order_by: Optional[str] = Field(default="created_at", description="Field to order by")
-    order_direction: Optional[str] = Field(default="desc", regex="^(asc|desc)$", description="Order direction")
+    order_direction: Optional[str] = Field(default="desc", pattern="^(asc|desc)$", description="Order direction")
 
 
 class PersonSearchResponse(BaseModel):
