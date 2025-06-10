@@ -10,6 +10,14 @@ from datetime import datetime, date
 from enum import Enum
 
 
+class ValidationResult(BaseModel):
+    """Schema for validation result response"""
+    code: str = Field(..., description="Validation code (V00001-V99999)")
+    field: str = Field(..., description="Field being validated")
+    message: str = Field(..., description="Validation message")
+    is_valid: bool = Field(..., description="Validation result")
+
+
 class IdentificationType(str, Enum):
     """
     CORRECTED: Identification document types from LmIdDocTypeCd lookup

@@ -10,7 +10,7 @@ import re
 from sqlalchemy.orm import Session
 import structlog
 
-from app.schemas.person import PersonCreateRequest, ValidationResult
+from app.schemas.person import PersonCreate, ValidationResult
 from app.models.person import Person
 from app.core.config import settings
 
@@ -23,86 +23,66 @@ class ValidationService:
     def __init__(self, db: Session):
         self.db = db
     
-    async def validate_person_creation(self, person_data: PersonCreateRequest) -> List[ValidationResult]:
+    async def validate_person_creation(self, person_data: PersonCreate) -> List[ValidationResult]:
         """
         Validate person creation against all business rules
         Returns list of validation results
         """
         results = []
         
-        # V00001: First name is required
-        results.append(self._validate_first_name(person_data.first_name))
-        
-        # V00002: Surname is required
-        results.append(self._validate_surname(person_data.surname))
-        
-        # V00003: Date of birth is required and valid
-        results.append(self._validate_date_of_birth(person_data.date_of_birth))
-        
-        # V00004: Gender is required and valid
-        results.append(self._validate_gender(person_data.gender))
-        
-        # V00005: Identification type is required and valid
-        results.append(self._validate_identification_type(person_data.identification_type))
-        
-        # V00006: Identification number is required and valid format
-        results.append(self._validate_identification_number(
-            person_data.identification_type, 
-            person_data.identification_number
-        ))
+        # Basic validation for corrected schema structure
+        # V00001: Business name/surname is required
+        results.append(self._validate_business_or_surname(person_data.business_or_surname))
         
         # V00007: Nationality is required
-        results.append(self._validate_nationality(person_data.nationality))
+        results.append(self._validate_nationality(person_data.nationality_code))
         
         # V00008: Email format validation (if provided)
         if person_data.email_address:
             results.append(self._validate_email_format(person_data.email_address))
         
         # V00009: Phone number format validation (if provided)
-        if person_data.phone_number:
-            results.append(self._validate_phone_number(person_data.phone_number))
+        if person_data.cell_phone:
+            results.append(self._validate_phone_number(person_data.cell_phone))
         
-        # V00010: Age validation for minimum age requirements
-        results.append(self._validate_minimum_age(person_data.date_of_birth))
+        # Validate aliases if provided
+        if person_data.aliases:
+            for alias in person_data.aliases:
+                results.append(self._validate_id_document(alias.id_document_type_code, alias.id_document_number))
         
-        # V00011: Maximum age validation
-        results.append(self._validate_maximum_age(person_data.date_of_birth))
-        
-        # V00012: Name format validation
-        results.append(self._validate_name_format(person_data.first_name, "first_name"))
-        results.append(self._validate_name_format(person_data.surname, "surname"))
-        
-        # V00013: Character validation for names
-        results.append(self._validate_name_characters(person_data.first_name, "first_name"))
-        results.append(self._validate_name_characters(person_data.surname, "surname"))
-        
-        # V00015: Data completeness validation
-        results.append(self._validate_data_completeness(person_data))
+        # V00485: Natural person validation
+        if person_data.person_nature in ["01", "02"] and not person_data.natural_person:
+            results.append(ValidationResult(
+                code="V00485",
+                field="natural_person",
+                message="Natural person details required for person_nature 01/02",
+                is_valid=False
+            ))
         
         return [r for r in results if r is not None]
     
-    def _validate_first_name(self, first_name: str) -> ValidationResult:
-        """V00001: First name validation"""
-        if not first_name or first_name.strip() == "":
+    def _validate_business_or_surname(self, business_or_surname: str) -> ValidationResult:
+        """V00001: Business name or surname validation"""
+        if not business_or_surname or business_or_surname.strip() == "":
             return ValidationResult(
                 code="V00001",
-                field="first_name",
-                message="First name is required",
+                field="business_or_surname",
+                message="Business name or surname is required",
                 is_valid=False
             )
         
-        if len(first_name.strip()) < 2:
+        if len(business_or_surname.strip()) < 2:
             return ValidationResult(
                 code="V00001",
-                field="first_name", 
-                message="First name must be at least 2 characters",
+                field="business_or_surname", 
+                message="Business name or surname must be at least 2 characters",
                 is_valid=False
             )
             
         return ValidationResult(
             code="V00001",
-            field="first_name",
-            message="First name is valid",
+            field="business_or_surname",
+            message="Business name or surname is valid",
             is_valid=True
         )
     
@@ -376,16 +356,29 @@ class ValidationService:
             is_valid=True
         )
     
-    def _validate_data_completeness(self, person_data: PersonCreateRequest) -> ValidationResult:
+    def _validate_id_document(self, doc_type: str, doc_number: str) -> ValidationResult:
+        """Validate ID document type and number"""
+        if not doc_type or not doc_number:
+            return ValidationResult(
+                code="V00013",
+                field="identification",
+                message="Identification type and number are required",
+                is_valid=False
+            )
+        
+        return ValidationResult(
+            code="V00013",
+            field="identification",
+            message="Identification is valid",
+            is_valid=True
+        )
+    
+    def _validate_data_completeness(self, person_data: PersonCreate) -> ValidationResult:
         """V00015: Data completeness validation"""
         required_fields = [
-            person_data.first_name,
-            person_data.surname,
-            person_data.date_of_birth,
-            person_data.gender,
-            person_data.identification_type,
-            person_data.identification_number,
-            person_data.nationality
+            person_data.business_or_surname,
+            person_data.person_nature,
+            person_data.nationality_code
         ]
         
         if not all(field is not None and str(field).strip() != "" for field in required_fields):
