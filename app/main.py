@@ -142,6 +142,69 @@ async def health_check():
         "timestamp": time.time()
     }
 
+# Database health check endpoint
+@app.get("/health/database")
+async def database_health_check():
+    """Database health check endpoint for debugging"""
+    from app.core.database import DatabaseManager
+    from app.core.config import get_settings
+    import os
+    
+    try:
+        config = get_settings()
+        database_url = config.DATABASE_URL
+        
+        # Mask password for logging
+        masked_url = database_url
+        if "@" in database_url:
+            parts = database_url.split("@")
+            if "://" in parts[0]:
+                schema_user = parts[0].split("://")
+                if ":" in schema_user[1]:
+                    user_pass = schema_user[1].split(":")
+                    masked_url = f"{schema_user[0]}://{user_pass[0]}:***@{parts[1]}"
+        
+        # Test database connection
+        connection_ok = DatabaseManager.test_connection()
+        
+        return {
+            "status": "healthy" if connection_ok else "unhealthy",
+            "database_url_masked": masked_url,
+            "database_url_from_env": os.getenv("DATABASE_URL", "Not set"),
+            "connection_test": "passed" if connection_ok else "failed",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "database_url_from_env": os.getenv("DATABASE_URL", "Not set"),
+            "timestamp": time.time()
+        }
+
+# Database initialization endpoint (for debugging)
+@app.post("/admin/init-database")
+async def init_database():
+    """Initialize database tables and basic data - ADMIN ONLY"""
+    try:
+        from app.core.database import engine
+        from app.models import Base
+        
+        # Create all tables
+        Base.metadata.create_all(bind=engine)
+        
+        return {
+            "status": "success",
+            "message": "Database tables created successfully",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

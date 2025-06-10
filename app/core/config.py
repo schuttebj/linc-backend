@@ -56,6 +56,7 @@ class Settings(BaseSettings):
             return [host.strip() for host in self.ALLOWED_HOSTS.split(",")]
     
     # Database Configuration (Single Country)
+    # This will be overridden by environment variables in production
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/linc_database"
     
     # File Storage Configuration
