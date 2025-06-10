@@ -37,7 +37,7 @@ from app.schemas.auth import (
     UserResponse,
     ChangePasswordRequest
 )
-from app.services.audit_service import AuditService
+# from app.services.audit_service import AuditService  # TODO: Implement audit service
 
 # Router setup
 router = APIRouter()
@@ -72,13 +72,9 @@ async def login(
         
         if not user:
             # Log failed login attempt
-            await AuditService.log_security_event(
-                db=db,
-                event_type="LOGIN_FAILED",
-                user_id=None,
-                ip_address=login_data.ip_address or request.client.host,
-                user_agent=request.headers.get("User-Agent"),
-                details={"username": login_data.username, "reason": "user_not_found"}
+            logger.warning(
+                f"Login failed - user not found: {login_data.username}, "
+                f"IP: {login_data.ip_address or request.client.host}"
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -88,13 +84,9 @@ async def login(
         # Verify password
         if not verify_password(login_data.password, user.password_hash):
             # Log failed login attempt
-            await AuditService.log_security_event(
-                db=db,
-                event_type="LOGIN_FAILED",
-                user_id=str(user.id),
-                ip_address=login_data.ip_address or request.client.host,
-                user_agent=request.headers.get("User-Agent"),
-                details={"username": login_data.username, "reason": "invalid_password"}
+            logger.warning(
+                f"Login failed - invalid password: {login_data.username}, "
+                f"IP: {login_data.ip_address or request.client.host}"
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -103,13 +95,9 @@ async def login(
         
         # Check if user is active
         if user.status != UserStatus.ACTIVE:
-            await AuditService.log_security_event(
-                db=db,
-                event_type="LOGIN_FAILED",
-                user_id=str(user.id),
-                ip_address=login_data.ip_address or request.client.host,
-                user_agent=request.headers.get("User-Agent"),
-                details={"username": login_data.username, "reason": "account_inactive"}
+            logger.warning(
+                f"Login failed - account inactive: {login_data.username}, "
+                f"IP: {login_data.ip_address or request.client.host}"
             )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -144,13 +132,9 @@ async def login(
         db.commit()
         
         # Log successful login
-        await AuditService.log_security_event(
-            db=db,
-            event_type="LOGIN_SUCCESS",
-            user_id=str(user.id),
-            ip_address=login_data.ip_address or request.client.host,
-            user_agent=request.headers.get("User-Agent"),
-            details={"username": login_data.username}
+        logger.info(
+            f"Login successful: {login_data.username}, "
+            f"IP: {login_data.ip_address or request.client.host}"
         )
         
         # Get user permissions and roles
@@ -262,14 +246,7 @@ async def refresh_token(
         )
         
         # Log token refresh
-        await AuditService.log_security_event(
-            db=db,
-            event_type="TOKEN_REFRESH",
-            user_id=str(user.id),
-            ip_address=request.client.host,
-            user_agent=request.headers.get("User-Agent"),
-            details={"username": user.username}
-        )
+        logger.info(f"Token refreshed for user: {user.username}, IP: {request.client.host}")
         
         return RefreshResponse(
             access_token=new_access_token,
@@ -310,14 +287,7 @@ async def logout(
         )
         
         # Log logout event
-        await AuditService.log_security_event(
-            db=db,
-            event_type="LOGOUT",
-            user_id=str(user.id),
-            ip_address=request.client.host,
-            user_agent=request.headers.get("User-Agent"),
-            details={"username": user.username}
-        )
+        logger.info(f"Logout successful: {user.username}, IP: {request.client.host}")
         
         return {"message": "Successfully logged out"}
         
@@ -402,12 +372,7 @@ async def change_password(
         db.commit()
         
         # Log password change
-        await AuditService.log_security_event(
-            db=db,
-            event_type="PASSWORD_CHANGE",
-            user_id=str(user.id),
-            details={"username": user.username}
-        )
+        logger.info(f"Password changed for user: {user.username}")
         
         return {"message": "Password changed successfully"}
         
