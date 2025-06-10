@@ -22,6 +22,7 @@ class UserLogin(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, description="Username or email")
     password: str = Field(..., min_length=8, description="Password")
     remember_me: bool = Field(False, description="Remember login session")
+    ip_address: Optional[str] = Field(None, description="Client IP address")
     
     class Config:
         json_schema_extra = {
@@ -35,7 +36,7 @@ class UserLogin(BaseModel):
 class UserLoginResponse(BaseModel):
     """User login response schema"""
     access_token: str
-    refresh_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int
     user: "UserResponse"
@@ -376,6 +377,26 @@ class UserListResponse(BaseModel):
     page: int
     size: int
     pages: int
+
+class UserPermissionResponse(BaseModel):
+    """User permission response schema"""
+    name: str
+    display_name: str
+    description: Optional[str]
+    category: str
+    
+    class Config:
+        from_attributes = True
+
+class UserRoleResponse(BaseModel):
+    """User role response schema"""
+    name: str
+    display_name: str
+    description: Optional[str]
+    level: int
+    
+    class Config:
+        from_attributes = True
 
 # Update forward references
 UserLoginResponse.model_rebuild()

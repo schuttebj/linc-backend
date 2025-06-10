@@ -47,6 +47,41 @@ app = FastAPI(
     redoc_url=f"{settings.API_V1_STR}/redoc",
 )
 
+# Configure multiple authentication schemes for OpenAPI
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    from fastapi.openapi.utils import get_openapi
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Add multiple authentication schemes
+    # TODO: REMOVE HTTPBasic before PRODUCTION! ⚠️
+    openapi_schema["components"]["securitySchemes"] = {
+        "HTTPBasic": {
+            "type": "http",
+            "scheme": "basic",
+            "description": "⚠️ TESTING ONLY - Simple username/password authentication (REMOVE IN PRODUCTION)"
+        },
+        "HTTPBearer": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "JWT Bearer token authentication (for production)"
+        }
+    }
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 # Security middleware
 app.add_middleware(
     TrustedHostMiddleware, 

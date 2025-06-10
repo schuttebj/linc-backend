@@ -4,30 +4,36 @@ Handles user authentication, authorization, and session management
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import Any, Dict, List
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import structlog
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_active_superuser
 from app.services.user_service import UserService
 from app.schemas.user import (
     UserLogin, UserLoginResponse, UserResponse,
     TokenRefresh, TokenResponse,
-    PasswordReset, PasswordResetConfirm, PasswordChange
+    PasswordReset, PasswordResetConfirm, PasswordChange,
+    UserPermissionResponse, UserRoleResponse
 )
-from app.models.user import User
+from app.models.user import User, Role, Permission, UserRole, RolePermission, UserStatus
+from app.core.config import get_settings
+from app.core.security import create_access_token, verify_password
+import uuid
+from app.core.security import get_password_hash
 
 logger = structlog.get_logger()
 router = APIRouter()
 security = HTTPBearer()
+settings = get_settings()
 
 @router.post("/login", response_model=UserLoginResponse)
 async def login(
     user_credentials: UserLogin,
-    request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """
@@ -42,7 +48,7 @@ async def login(
         user_service = UserService(db)
         
         # Get client IP address
-        client_ip = request.client.host if request.client else None
+        client_ip = user_credentials.ip_address if user_credentials.ip_address else None
         
         # Authenticate user
         user = await user_service.authenticate_user(
@@ -58,18 +64,30 @@ async def login(
                 headers={"WWW-Authenticate": "Bearer"}
             )
         
-        # Create tokens
-        tokens = await user_service.create_tokens(user)
+        # Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.username, "user_id": str(user.id)},
+            expires_delta=access_token_expires
+        )
         
         # Prepare response
         user_response = UserResponse.from_orm(user)
         
         response = UserLoginResponse(
-            access_token=tokens["access_token"],
-            refresh_token=tokens["refresh_token"],
-            token_type=tokens["token_type"],
-            expires_in=tokens["expires_in"],
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=user_response
+        )
+        
+        # Log successful login
+        background_tasks.add_task(
+            user_service.log_user_action,
+            user_id=user.id,
+            action="login",
+            ip_address=client_ip,
+            success=True
         )
         
         logger.info("User logged in successfully", 
@@ -88,8 +106,8 @@ async def login(
 
 @router.post("/logout")
 async def logout(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user)
 ):
     """
     User logout endpoint
@@ -104,7 +122,10 @@ async def logout(
         current_user.token_expires_at = None
         current_user.refresh_token_hash = None
         
-        db.commit()
+        # Logout action
+        background_tasks.add_task(
+            lambda: None  # Placeholder for logout action
+        )
         
         user_service = UserService(db)
         await user_service._log_audit(
@@ -192,6 +213,7 @@ async def get_current_user_info(
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -205,20 +227,29 @@ async def change_password(
         
         user_service = UserService(db)
         
-        success = await user_service.change_password(
-            user_id=str(current_user.id),
-            current_password=password_data.current_password,
+        # Verify current password
+        if not verify_password(password_data.current_password, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid current password"
+            )
+        
+        # Update password
+        await user_service.update_user_password(
+            user_id=current_user.id,
             new_password=password_data.new_password
         )
         
-        if success:
-            logger.info("Password changed successfully", user_id=current_user.id)
-            return {"message": "Password changed successfully"}
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to change password"
-            )
+        # Log password change
+        background_tasks.add_task(
+            user_service.log_user_action,
+            user_id=current_user.id,
+            action="password_change",
+            success=True
+        )
+        
+        logger.info("Password changed successfully", user_id=current_user.id)
+        return {"message": "Password changed successfully"}
             
     except HTTPException:
         raise
@@ -307,9 +338,10 @@ async def reset_password(
             detail="Password reset failed"
         )
 
-@router.get("/permissions")
-async def get_user_permissions(
-    current_user: User = Depends(get_current_user)
+@router.get("/permissions", response_model=List[UserPermissionResponse])
+async def get_current_user_permissions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current user permissions
@@ -319,23 +351,18 @@ async def get_user_permissions(
     try:
         logger.info("Get user permissions", user_id=current_user.id)
         
-        permissions = []
+        user_service = UserService(db)
+        permissions = await user_service.get_user_permissions(current_user.id)
         
-        if current_user.is_superuser:
-            permissions.append("*")  # Superuser has all permissions
-        else:
-            for role in current_user.roles:
-                if role.is_active:
-                    for permission in role.permissions:
-                        if permission.is_active:
-                            permissions.append(permission.name)
-        
-        return {
-            "user_id": str(current_user.id),
-            "username": current_user.username,
-            "roles": [role.name for role in current_user.roles if role.is_active],
-            "permissions": list(set(permissions))  # Remove duplicates
-        }
+        return [
+            UserPermissionResponse(
+                name=perm.name,
+                display_name=perm.display_name,
+                description=perm.description,
+                category=perm.category
+            )
+            for perm in permissions
+        ]
         
     except Exception as e:
         logger.error("Get permissions error", user_id=current_user.id, error=str(e))
@@ -344,9 +371,10 @@ async def get_user_permissions(
             detail="Failed to retrieve user permissions"
         )
 
-@router.get("/roles")
-async def get_user_roles(
-    current_user: User = Depends(get_current_user)
+@router.get("/roles", response_model=List[UserRoleResponse])
+async def get_current_user_roles(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Get current user roles
@@ -356,21 +384,18 @@ async def get_user_roles(
     try:
         logger.info("Get user roles", user_id=current_user.id)
         
-        roles = []
-        for role in current_user.roles:
-            if role.is_active:
-                roles.append({
-                    "id": str(role.id),
-                    "name": role.name,
-                    "display_name": role.display_name,
-                    "description": role.description
-                })
+        user_service = UserService(db)
+        roles = await user_service.get_user_roles(current_user.id)
         
-        return {
-            "user_id": str(current_user.id),
-            "username": current_user.username,
-            "roles": roles
-        }
+        return [
+            UserRoleResponse(
+                name=role.name,
+                display_name=role.display_name,
+                description=role.description,
+                level=role.level
+            )
+            for role in roles
+        ]
         
     except Exception as e:
         logger.error("Get roles error", user_id=current_user.id, error=str(e))
@@ -381,36 +406,154 @@ async def get_user_roles(
 
 @router.post("/validate-token")
 async def validate_token(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Validate if current token is valid
+    """
+    return {
+        "valid": True,
+        "user_id": str(current_user.id),
+        "username": current_user.username
+    }
+
+@router.post("/initialize-system")
+async def initialize_system(
     db: Session = Depends(get_db)
 ):
     """
-    Validate authentication token
-    
-    Validates the provided JWT token and returns user information
+    Initialize the authentication system with default users and roles
+    TEMPORARY ENDPOINT - Remove in production!
     """
     try:
-        logger.info("Token validation request")
+        # Check if admin user already exists
+        existing_admin = db.query(User).filter(User.username == "admin").first()
+        if existing_admin:
+            return {"message": "System already initialized", "admin_exists": True}
         
-        # Get current user will validate the token
-        current_user = await get_current_user(credentials, db)
+        # Create default permissions
+        permissions_data = [
+            {"name": "license.application.create", "display_name": "Create License Application", "description": "Create new license applications", "category": "license"},
+            {"name": "license.application.read", "display_name": "View License Applications", "description": "View and search license applications", "category": "license"},
+            {"name": "license.application.update", "display_name": "Update License Application", "description": "Update existing license applications", "category": "license"},
+            {"name": "admin.user.create", "display_name": "Create Users", "description": "Create new system users", "category": "administration"},
+            {"name": "admin.user.read", "display_name": "View Users", "description": "View system users", "category": "administration"},
+            {"name": "admin.user.update", "display_name": "Update Users", "description": "Update system user accounts", "category": "administration"},
+        ]
+        
+        permissions_created = {}
+        for perm_data in permissions_data:
+            permission = Permission(
+                id=str(uuid.uuid4()),
+                name=perm_data["name"],
+                display_name=perm_data["display_name"],
+                description=perm_data["description"],
+                category=perm_data["category"],
+                is_active=True,
+                created_at=datetime.utcnow(),
+                created_by="system"
+            )
+            db.add(permission)
+            permissions_created[permission.name] = permission
+        
+        db.flush()
+        
+        # Create admin role
+        admin_role = Role(
+            id=str(uuid.uuid4()),
+            name="super_admin",
+            display_name="Super Administrator",
+            description="Full system access with all permissions",
+            level=1,
+            is_system_role=True,
+            is_active=True,
+            created_at=datetime.utcnow(),
+            created_by="system"
+        )
+        db.add(admin_role)
+        db.flush()
+        
+        # Add permissions to admin role
+        for perm in permissions_created.values():
+            role_permission = RolePermission(
+                role_id=admin_role.id,
+                permission_id=perm.id,
+                created_at=datetime.utcnow(),
+                created_by="system"
+            )
+            db.add(role_permission)
+        
+        # Create admin user
+        admin_user = User(
+            id=str(uuid.uuid4()),
+            username="admin",
+            email="admin@linc.gov.za",
+            first_name="System",
+            last_name="Administrator",
+            password_hash=get_password_hash("Admin123!"),
+            employee_id="ADMIN001",
+            department="IT Administration",
+            country_code="ZA",
+            is_active=True,
+            is_verified=True,
+            is_superuser=True,
+            status=UserStatus.ACTIVE.value,
+            require_password_change=True,
+            created_at=datetime.utcnow(),
+            created_by="system"
+        )
+        db.add(admin_user)
+        db.flush()
+        
+        # Add admin role to user
+        user_role = UserRole(
+            user_id=admin_user.id,
+            role_id=admin_role.id,
+            created_at=datetime.utcnow(),
+            created_by="system"
+        )
+        db.add(user_role)
+        
+        # Create test users
+        test_users = [
+            {"username": "operator1", "password": "Operator123!", "first_name": "Jane", "last_name": "Smith"},
+            {"username": "examiner1", "password": "Examiner123!", "first_name": "Mike", "last_name": "Johnson"},
+        ]
+        
+        for user_data in test_users:
+            user = User(
+                id=str(uuid.uuid4()),
+                username=user_data["username"],
+                email=f"{user_data['username']}@linc.gov.za",
+                first_name=user_data["first_name"],
+                last_name=user_data["last_name"],
+                password_hash=get_password_hash(user_data["password"]),
+                employee_id=f"EMP{user_data['username'][-1]}",
+                department="Operations",
+                country_code="ZA",
+                is_active=True,
+                is_verified=True,
+                status=UserStatus.ACTIVE.value,
+                require_password_change=True,
+                created_at=datetime.utcnow(),
+                created_by="system"
+            )
+            db.add(user)
+        
+        db.commit()
         
         return {
-            "valid": True,
-            "user_id": str(current_user.id),
-            "username": current_user.username,
-            "expires_at": current_user.token_expires_at.isoformat() if current_user.token_expires_at else None
+            "message": "Authentication system initialized successfully!",
+            "admin_user": "admin",
+            "admin_password": "Admin123!",
+            "note": "Please change the default password immediately",
+            "test_users": ["operator1", "examiner1"],
+            "warning": "Remove this endpoint in production!"
         }
         
-    except HTTPException as e:
-        logger.info("Invalid token validation attempt")
-        return {
-            "valid": False,
-            "error": e.detail
-        }
     except Exception as e:
-        logger.error("Token validation error", error=str(e))
-        return {
-            "valid": False,
-            "error": "Token validation failed"
-        } 
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to initialize system: {str(e)}"
+        ) 
