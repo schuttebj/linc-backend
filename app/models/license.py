@@ -51,7 +51,7 @@ class LicenseApplication(BaseModel):
     application_number = Column(String(20), unique=True, nullable=False, index=True)
     
     # Person reference
-    person_id = Column(UUID(as_uuid=True), ForeignKey("person_entities.id"), nullable=False)
+    person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id"), nullable=False)
     
     # Application details
     license_type = Column(SQLEnum(LicenseType), nullable=False)
@@ -140,7 +140,7 @@ class LicenseCard(BaseModel):
     
     # Application reference
     application_id = Column(UUID(as_uuid=True), ForeignKey("license_applications.id"), nullable=False)
-    person_id = Column(UUID(as_uuid=True), ForeignKey("person_entities.id"), nullable=False)
+    person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id"), nullable=False)
     
     # Card details
     license_type = Column(SQLEnum(LicenseType), nullable=False)

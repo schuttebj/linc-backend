@@ -8,16 +8,13 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from typing import Optional
 import uuid
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from enum import Enum as PythonEnum
 
 from app.models.base import BaseModel
 from app.models.enums import ValidationStatus, Gender, AddressType
 
-Base = declarative_base()
-
-class Person(Base):
+class Person(BaseModel):
     """
     Person entity representing individuals in the system.
     
@@ -28,7 +25,7 @@ class Person(Base):
     __tablename__ = "persons"
     
     # Primary identification
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     
     # Identity Information - Country-specific (strings with config validation)
     # Based on Screen Field Specifications: ID types vary significantly by country
