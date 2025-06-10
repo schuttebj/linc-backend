@@ -574,17 +574,43 @@ class UserService:
         """Check if user has specific role"""
         return user.has_role(role_name)
     
-    async def get_user_permissions(self, user_id: str) -> List[str]:
-        """Get list of permissions for a specific user"""
+    async def get_user_permissions(self, user_id: str) -> List[Permission]:
+        """Get list of permission objects for a specific user"""
         try:
             user = await self.get_user_by_id(user_id)
             if not user:
                 return []
             
-            return self._get_user_permissions(user)
+            permissions = set()
+            
+            if user.is_superuser:
+                # Superuser has all permissions
+                all_permissions = self.db.query(Permission).filter(Permission.is_active == True).all()
+                return all_permissions
+            
+            for role in user.roles:
+                if role.is_active:
+                    for permission in role.permissions:
+                        if permission.is_active:
+                            permissions.add(permission)
+            
+            return list(permissions)
             
         except Exception as e:
             logger.error("Error getting user permissions", user_id=user_id, error=str(e))
+            return []
+    
+    async def get_user_roles(self, user_id: str) -> List[Role]:
+        """Get list of role objects for a specific user"""
+        try:
+            user = await self.get_user_by_id(user_id)
+            if not user:
+                return []
+            
+            return [role for role in user.roles if role.is_active]
+            
+        except Exception as e:
+            logger.error("Error getting user roles", user_id=user_id, error=str(e))
             return []
     
     # Audit Methods
