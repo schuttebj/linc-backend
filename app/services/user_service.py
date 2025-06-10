@@ -610,4 +610,33 @@ class UserService:
             
         except Exception as e:
             logger.error("Error logging audit event", action=action, error=str(e))
-            # Don't raise exception for audit logging failures 
+            # Don't raise exception for audit logging failures
+    
+    async def log_user_action(
+        self,
+        user_id: str,
+        action: str,
+        resource: str = "authentication",
+        resource_id: Optional[str] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        endpoint: Optional[str] = None,
+        method: Optional[str] = None,
+        success: bool = True,
+        error_message: Optional[str] = None,
+        details: Optional[str] = None
+    ):
+        """Public method to log user actions"""
+        await self._log_audit(
+            user_id=user_id,
+            action=action,
+            resource=resource,
+            resource_id=resource_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            endpoint=endpoint,
+            method=method,
+            success=success,
+            error_message=error_message,
+            details=details
+        ) 
