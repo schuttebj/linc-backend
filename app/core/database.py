@@ -3,7 +3,7 @@ LINC Database Configuration
 Single-country database setup with simplified connection management
 """
 
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, MetaData, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
@@ -105,7 +105,7 @@ class DatabaseManager:
         """Test database connection"""
         try:
             with get_db_context() as db:
-                db.execute("SELECT 1")
+                db.execute(text("SELECT 1"))
                 return True
         except Exception as e:
             logger.error(f"Database connection test failed: {e}")
