@@ -21,7 +21,7 @@ from ..schemas.license import (
     LicenseCardCreate,
     ApplicationPaymentCreate
 )
-from .validation_service import ValidationService
+from .validation import ValidationOrchestrator
 from .person_service import PersonService
 
 
@@ -35,7 +35,7 @@ class LicenseApplicationService:
     def __init__(self, db: Session, country_code: str):
         self.db = db
         self.country_code = country_code
-        self.validation_service = ValidationService(db, country_code)
+        self.validation_orchestrator = ValidationOrchestrator(db, country_code)
         self.person_service = PersonService(db, country_code)
     
     def create_application(

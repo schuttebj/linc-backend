@@ -20,7 +20,7 @@ from ....schemas.license import (
     TestCenterResponse
 )
 from ....services.license_service import LicenseApplicationService
-from ....services.validation_service import ValidationService
+from ....services.validation import ValidationOrchestrator
 
 router = APIRouter()
 
