@@ -8,7 +8,7 @@ from sqlalchemy import text
 import time
 from typing import Dict, Any
 
-from app.core.database import DatabaseManager
+from app.core.database import get_db_context, engine
 from app.core.config import settings
 
 router = APIRouter()
@@ -21,9 +21,6 @@ async def create_audit_tables() -> Dict[str, Any]:
     This endpoint can be called to initialize the audit system.
     """
     try:
-        db_manager = DatabaseManager()
-        session = db_manager.get_session()
-        
         # Create audit_logs table
         audit_logs_sql = """
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -39,7 +36,7 @@ async def create_audit_tables() -> Dict[str, Any]:
             success BOOLEAN DEFAULT TRUE,
             error_message TEXT,
             session_id VARCHAR(255),
-            country_code VARCHAR(10) DEFAULT 'LR'
+            country_code VARCHAR(10) DEFAULT 'ZA'
         );
         """
         
@@ -53,7 +50,7 @@ async def create_audit_tables() -> Dict[str, Any]:
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             source VARCHAR(100),
             severity VARCHAR(20) DEFAULT 'INFO',
-            country_code VARCHAR(10) DEFAULT 'LR'
+            country_code VARCHAR(10) DEFAULT 'ZA'
         );
         """
         
@@ -81,44 +78,38 @@ async def create_audit_tables() -> Dict[str, Any]:
         }
         
         try:
-            # Create audit_logs table
-            session.execute(text(audit_logs_sql))
-            results["tables_created"].append("audit_logs")
-            
-            # Create audit_events table
-            session.execute(text(audit_events_sql))
-            results["tables_created"].append("audit_events")
-            
-            # Create indices for audit_logs
-            for index_sql in audit_logs_indices:
-                try:
-                    session.execute(text(index_sql))
-                    results["indices_created"].append(index_sql.split("idx_")[1].split(" ")[0])
-                except Exception as e:
-                    results["errors"].append(f"Index creation error: {str(e)}")
-            
-            # Create indices for audit_events
-            for index_sql in audit_events_indices:
-                try:
-                    session.execute(text(index_sql))
-                    results["indices_created"].append(index_sql.split("idx_")[1].split(" ")[0])
-                except Exception as e:
-                    results["errors"].append(f"Index creation error: {str(e)}")
-            
-            # Commit the transaction
-            session.commit()
-            
-            results["status"] = "success"
-            results["message"] = f"Created {len(results['tables_created'])} tables and {len(results['indices_created'])} indices"
-            
+            with get_db_context() as session:
+                # Create audit_logs table
+                session.execute(text(audit_logs_sql))
+                results["tables_created"].append("audit_logs")
+                
+                # Create audit_events table
+                session.execute(text(audit_events_sql))
+                results["tables_created"].append("audit_events")
+                
+                # Create indices for audit_logs
+                for index_sql in audit_logs_indices:
+                    try:
+                        session.execute(text(index_sql))
+                        results["indices_created"].append(index_sql.split("idx_")[1].split(" ")[0])
+                    except Exception as e:
+                        results["errors"].append(f"Index creation error: {str(e)}")
+                
+                # Create indices for audit_events
+                for index_sql in audit_events_indices:
+                    try:
+                        session.execute(text(index_sql))
+                        results["indices_created"].append(index_sql.split("idx_")[1].split(" ")[0])
+                    except Exception as e:
+                        results["errors"].append(f"Index creation error: {str(e)}")
+                
+                results["status"] = "success"
+                results["message"] = f"Created {len(results['tables_created'])} tables and {len(results['indices_created'])} indices"
+                
         except Exception as e:
-            session.rollback()
             results["status"] = "error"
             results["message"] = f"Database error: {str(e)}"
             results["errors"].append(str(e))
-            
-        finally:
-            session.close()
             
         return results
         
@@ -135,35 +126,31 @@ async def check_database_tables() -> Dict[str, Any]:
     Check which tables exist in the database
     """
     try:
-        db_manager = DatabaseManager()
-        session = db_manager.get_session()
-        
-        # Query to get all table names
-        table_check_sql = """
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public' 
-        ORDER BY table_name;
-        """
-        
-        result = session.execute(text(table_check_sql))
-        tables = [row[0] for row in result.fetchall()]
-        
-        # Check specifically for audit tables
-        audit_tables = {
-            "audit_logs": "audit_logs" in tables,
-            "audit_events": "audit_events" in tables
-        }
-        
-        session.close()
-        
-        return {
-            "status": "success",
-            "all_tables": tables,
-            "audit_tables": audit_tables,
-            "audit_system_ready": all(audit_tables.values()),
-            "timestamp": time.time()
-        }
+        with get_db_context() as session:
+            # Query to get all table names
+            table_check_sql = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            ORDER BY table_name;
+            """
+            
+            result = session.execute(text(table_check_sql))
+            tables = [row[0] for row in result.fetchall()]
+            
+            # Check specifically for audit tables
+            audit_tables = {
+                "audit_logs": "audit_logs" in tables,
+                "audit_events": "audit_events" in tables
+            }
+            
+            return {
+                "status": "success",
+                "all_tables": tables,
+                "audit_tables": audit_tables,
+                "audit_system_ready": all(audit_tables.values()),
+                "timestamp": time.time()
+            }
         
     except Exception as e:
         raise HTTPException(
