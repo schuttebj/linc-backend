@@ -3,7 +3,7 @@ LINC Automatic Endpoint Monitoring API
 Real-time endpoint health monitoring and logging
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from typing import Dict, List, Any, Optional
 import asyncio
@@ -155,18 +155,30 @@ class EndpointMonitor:
                 "response_data": None if not include_response_data else f"Connection error: {str(e)}"
             }
     
-    async def monitor_all_endpoints(self, auth_header: Optional[str] = None, include_response_data: bool = False) -> Dict[str, Any]:
+    async def monitor_all_endpoints(self, auth_header: Optional[str] = None, include_response_data: bool = False, stop_on_error: bool = False) -> Dict[str, Any]:
         """Monitor all endpoints and return comprehensive health report"""
         start_time = datetime.utcnow()
         
         async with aiohttp.ClientSession() as session:
-            # Check all endpoints concurrently
-            tasks = [
-                self.check_endpoint(session, endpoint, auth_header, include_response_data)
-                for endpoint in self.monitored_endpoints
-            ]
-            
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            if stop_on_error:
+                # Sequential testing - stop on first error
+                results = []
+                for endpoint in self.monitored_endpoints:
+                    result = await self.check_endpoint(session, endpoint, auth_header, include_response_data)
+                    results.append(result)
+                    
+                    # Stop if we encounter an unhealthy or error status
+                    if result.get("status") in ["unhealthy", "error"]:
+                        logger.warning(f"Stopping tests due to error in {endpoint['path']}: {result.get('error', 'Status: ' + str(result.get('status_code')))}")
+                        break
+            else:
+                # Concurrent testing - test all endpoints
+                tasks = [
+                    self.check_endpoint(session, endpoint, auth_header, include_response_data)
+                    for endpoint in self.monitored_endpoints
+                ]
+                
+                results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Process results
         endpoint_results = []
@@ -211,6 +223,10 @@ class EndpointMonitor:
         successful_endpoints = [r for r in endpoint_results if r.get("status") == "healthy"]
         problematic_endpoints = [r for r in endpoint_results if r.get("status") in ["unhealthy", "error"]]
         
+        # Check if monitoring stopped early
+        stopped_early = stop_on_error and problematic_endpoints
+        first_error = problematic_endpoints[0] if problematic_endpoints else None
+        
         return {
             "monitoring_summary": {
                 "overall_status": overall_status,
@@ -226,7 +242,9 @@ class EndpointMonitor:
             "successful_endpoints": successful_endpoints,
             "problematic_endpoints": problematic_endpoints,
             "endpoint_details": endpoint_results,
-            "alerts": problematic_endpoints
+            "alerts": problematic_endpoints,
+            "stopped_early": stopped_early,
+            "first_error": first_error
         }
 
 # Notification service for production monitoring
@@ -279,6 +297,8 @@ notification_service = NotificationService()
 @router.get("/development/test-all")
 async def development_test_all_endpoints(
     request: Request,
+    stop_on_error: bool = False,  # New parameter to stop on first error
+    include_response_data: bool = True,  # Default to true for development
     current_user: User = Depends(get_current_user),
     audit_service: AuditService = Depends(lambda db=Depends(get_db): AuditService(db, settings.COUNTRY_CODE))
 ):
@@ -286,6 +306,10 @@ async def development_test_all_endpoints(
     DEVELOPMENT ONLY: Comprehensive endpoint testing with detailed response data
     This endpoint tests all API calls and returns detailed success/failure information
     including full response data for debugging purposes.
+    
+    Args:
+        stop_on_error: If True, stops testing at the first unhealthy/error endpoint
+        include_response_data: Include full response data in results
     """
     try:
         # Update monitor base URL based on request
@@ -299,8 +323,12 @@ async def development_test_all_endpoints(
         # Use current user's auth for testing
         auth_header = request.headers.get("authorization")
         
-        # Run comprehensive monitoring with detailed response data
-        monitoring_result = await current_monitor.monitor_all_endpoints(auth_header, include_response_data=True)
+        # Run comprehensive monitoring with stop-on-error option
+        monitoring_result = await current_monitor.monitor_all_endpoints(
+            auth_header, 
+            include_response_data=include_response_data,
+            stop_on_error=stop_on_error
+        )
         
         # Log development testing activity
         user_context = UserContext(
@@ -321,7 +349,9 @@ async def development_test_all_endpoints(
                 "health_percentage": monitoring_result["monitoring_summary"]["health_percentage"],
                 "total_endpoints": monitoring_result["monitoring_summary"]["total_endpoints"],
                 "problematic_count": len(monitoring_result["problematic_endpoints"]),
-                "successful_count": len(monitoring_result["successful_endpoints"])
+                "successful_count": len(monitoring_result["successful_endpoints"]),
+                "stop_on_error": stop_on_error,
+                "stopped_early": monitoring_result.get("stopped_early", False)
             },
             **user_context.dict()
         ))
@@ -334,16 +364,222 @@ async def development_test_all_endpoints(
                 "category_health": monitoring_result["category_health"],
                 "successful_endpoints": monitoring_result["successful_endpoints"],
                 "problematic_endpoints": monitoring_result["problematic_endpoints"],
-                "detailed_responses": monitoring_result["endpoint_details"]
+                "detailed_responses": monitoring_result["endpoint_details"],
+                "stopped_early": monitoring_result.get("stopped_early", False),
+                "first_error": monitoring_result.get("first_error", None)
             },
             "message": f"Tested {monitoring_result['monitoring_summary']['total_endpoints']} endpoints. " +
                       f"Success: {len(monitoring_result['successful_endpoints'])}, " +
-                      f"Problems: {len(monitoring_result['problematic_endpoints'])}"
+                      f"Problems: {len(monitoring_result['problematic_endpoints'])}" +
+                      (f" (Stopped early due to error)" if monitoring_result.get("stopped_early") else "")
         }
         
     except Exception as e:
         logger.error(f"Development endpoint testing failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to run comprehensive endpoint testing")
+
+@router.get("/development/test-single/{endpoint_path:path}")
+async def development_test_single_endpoint(
+    endpoint_path: str,
+    method: str = "GET",
+    request: Request = None,
+    current_user: User = Depends(get_current_user),
+    audit_service: AuditService = Depends(lambda db=Depends(get_db): AuditService(db, settings.COUNTRY_CODE))
+):
+    """
+    DEVELOPMENT ONLY: Test a single specific endpoint with full error details
+    Useful for debugging specific endpoint issues
+    
+    Args:
+        endpoint_path: The endpoint path to test (e.g., 'api/v1/persons/')
+        method: HTTP method (default: GET)
+    """
+    try:
+        # Update monitor base URL based on request
+        host = request.headers.get("host", "localhost:8000")
+        scheme = "https" if request.headers.get("x-forwarded-proto") == "https" else "http"
+        base_url = f"{scheme}://{host}"
+        
+        # Create monitor for current environment
+        current_monitor = EndpointMonitor(base_url)
+        
+        # Use current user's auth for testing
+        auth_header = request.headers.get("authorization")
+        
+        # Find the endpoint in our monitored list
+        endpoint_config = None
+        for ep in current_monitor.monitored_endpoints:
+            if ep["path"].strip("/") == endpoint_path.strip("/") and ep["method"].upper() == method.upper():
+                endpoint_config = ep
+                break
+        
+        if not endpoint_config:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Endpoint {method} /{endpoint_path} not found in monitored endpoints"
+            )
+        
+        # Test the single endpoint with full details
+        async with aiohttp.ClientSession() as session:
+            result = await current_monitor.check_endpoint(
+                session, endpoint_config, auth_header, include_response_data=True
+            )
+        
+        # Log single endpoint test
+        user_context = UserContext(
+            user_id=str(current_user.id),
+            username=current_user.username,
+            ip_address=request.client.host,
+            user_agent=request.headers.get("user-agent"),
+            session_id=request.headers.get("x-session-id")
+        )
+        
+        audit_service.log_action(AuditLogData(
+            action_type="DEVELOPMENT_SINGLE_ENDPOINT_TEST",
+            entity_type="ENDPOINT",
+            entity_id=f"{method}_{endpoint_path}",
+            success=result.get("status") == "healthy",
+            new_values={
+                "endpoint": endpoint_path,
+                "method": method,
+                "status": result.get("status"),
+                "status_code": result.get("status_code"),
+                "response_time_ms": result.get("response_time_ms"),
+                "error": result.get("error")
+            },
+            **user_context.dict()
+        ))
+        
+        return {
+            "success": True,
+            "test_type": "single_endpoint",
+            "endpoint": endpoint_path,
+            "method": method,
+            "result": result,
+            "message": f"Tested {method} /{endpoint_path} - Status: {result.get('status')}"
+        }
+        
+    except Exception as e:
+        logger.error(f"Single endpoint testing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to test endpoint: {str(e)}")
+
+@router.get("/development/error-logs")
+async def get_monitoring_error_logs(
+    hours: int = Query(24, ge=1, le=168, description="Number of hours to look back"),
+    error_only: bool = Query(True, description="Only show failed/error entries"),
+    action_types: List[str] = Query(None, description="Filter by action types"),
+    current_user: User = Depends(get_current_user),
+    audit_service: AuditService = Depends(lambda db=Depends(get_db): AuditService(db, settings.COUNTRY_CODE))
+):
+    """
+    DEVELOPMENT ONLY: Get error logs and monitoring failures from audit database
+    This retrieves structured error information from the database rather than parsing logs
+    
+    Args:
+        hours: Number of hours to look back (default: 24)
+        error_only: Only show failed entries (default: True)
+        action_types: Filter by specific action types
+    """
+    try:
+        from datetime import timedelta
+        from app.models.audit import AuditLog as AuditLogModel
+        
+        start_time = datetime.utcnow() - timedelta(hours=hours)
+        
+        # Build query for audit logs
+        query = audit_service.db.query(AuditLogModel).filter(
+            AuditLogModel.timestamp >= start_time,
+            AuditLogModel.country_code == settings.COUNTRY_CODE
+        )
+        
+        # Filter by action types related to monitoring and endpoints
+        default_action_types = [
+            "DEVELOPMENT_ENDPOINT_TEST",
+            "DEVELOPMENT_SINGLE_ENDPOINT_TEST", 
+            "ENDPOINT_MONITORING",
+            "CONTINUOUS_MONITORING",
+            "MONITORING_FAILURE"
+        ]
+        
+        filter_types = action_types if action_types else default_action_types
+        query = query.filter(AuditLogModel.action_type.in_(filter_types))
+        
+        # Filter by success if error_only is True
+        if error_only:
+            query = query.filter(
+                (AuditLogModel.success == False) | 
+                (AuditLogModel.error_message.isnot(None))
+            )
+        
+        # Order by timestamp descending
+        logs = query.order_by(AuditLogModel.timestamp.desc()).limit(100).all()
+        
+        # Format results for better readability
+        error_logs = []
+        for log in logs:
+            log_data = {
+                "timestamp": log.timestamp.isoformat(),
+                "action_type": log.action_type,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+                "success": log.success,
+                "error_message": log.error_message,
+                "warning_messages": log.warning_messages,
+                "username": log.username,
+                "ip_address": log.ip_address,
+                "new_values": log.new_values,
+                "old_values": log.old_values,
+                "execution_time_ms": log.execution_time_ms
+            }
+            error_logs.append(log_data)
+        
+        # Analyze error patterns
+        error_summary = {}
+        for log in error_logs:
+            error_type = log.get("error_message", "Unknown error")[:100]  # First 100 chars
+            if error_type not in error_summary:
+                error_summary[error_type] = {"count": 0, "latest": None, "first": None}
+            
+            error_summary[error_type]["count"] += 1
+            if not error_summary[error_type]["latest"] or log["timestamp"] > error_summary[error_type]["latest"]:
+                error_summary[error_type]["latest"] = log["timestamp"]
+            if not error_summary[error_type]["first"] or log["timestamp"] < error_summary[error_type]["first"]:
+                error_summary[error_type]["first"] = log["timestamp"]
+        
+        # Get recent endpoint-specific errors from new_values
+        endpoint_errors = []
+        for log in error_logs:
+            if log.get("new_values") and isinstance(log["new_values"], dict):
+                if "problematic_endpoints" in log["new_values"]:
+                    problematic = log["new_values"]["problematic_endpoints"]
+                    if isinstance(problematic, int) and problematic > 0:
+                        endpoint_errors.append({
+                            "timestamp": log["timestamp"],
+                            "problematic_count": problematic,
+                            "overall_status": log["new_values"].get("overall_status"),
+                            "health_percentage": log["new_values"].get("health_percentage")
+                        })
+        
+        return {
+            "success": True,
+            "data": {
+                "period_hours": hours,
+                "total_logs": len(error_logs),
+                "error_logs": error_logs,
+                "error_summary": error_summary,
+                "endpoint_errors": endpoint_errors[:10],  # Last 10 endpoint error events
+                "filters_applied": {
+                    "hours": hours,
+                    "error_only": error_only,
+                    "action_types": filter_types
+                }
+            },
+            "message": f"Retrieved {len(error_logs)} error logs from the last {hours} hours"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to retrieve error logs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve error logs: {str(e)}")
 
 # PRODUCTION ENDPOINTS - Standard monitoring and production features
 

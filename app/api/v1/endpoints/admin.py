@@ -261,7 +261,7 @@ async def get_system_info() -> Dict[str, Any]:
             "currency": settings.CURRENCY
         },
         "environment": {
-            "debug": settings.DEBUG,
+            "debug": getattr(settings, 'DEBUG', False),
             "testing": getattr(settings, 'TESTING', False)
         },
         "timestamp": time.time()
