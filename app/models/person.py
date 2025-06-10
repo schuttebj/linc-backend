@@ -120,6 +120,7 @@ class Person(BaseModel):
     aliases = relationship("PersonAlias", back_populates="person", cascade="all, delete-orphan")
     natural_person = relationship("NaturalPerson", back_populates="person", uselist=False, cascade="all, delete-orphan")
     addresses = relationship("PersonAddress", back_populates="person", cascade="all, delete-orphan")
+    license_applications = relationship("LicenseApplication", back_populates="person", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Person(id={self.id}, name='{self.business_or_surname}', nature='{self.person_nature}')>"
