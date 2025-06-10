@@ -38,9 +38,6 @@ class BaseModel(Base):
     deleted_at = Column(DateTime, nullable=True)
     deleted_by = Column(UUID(as_uuid=True), nullable=True)
     
-    # Country context for multi-tenant support
-    country_code = Column(String(2), nullable=False, index=True)
-    
     def __repr__(self):
         return f"<{self.__class__.__name__}(id={self.id})>"
     
