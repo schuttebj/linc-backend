@@ -21,53 +21,101 @@ async def create_audit_tables() -> Dict[str, Any]:
     This endpoint can be called to initialize the audit system.
     """
     try:
-        # Create audit_logs table
+        # Create audit_logs table matching the AuditLog SQLAlchemy model
         audit_logs_sql = """
         CREATE TABLE IF NOT EXISTS audit_logs (
-            id SERIAL PRIMARY KEY,
-            action VARCHAR(50) NOT NULL,
-            entity_type VARCHAR(100),
-            entity_id VARCHAR(100),
-            user_id INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            details JSONB,
-            ip_address INET,
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            transaction_id UUID NOT NULL DEFAULT gen_random_uuid(),
+            session_id VARCHAR(128),
+            user_id UUID,
+            username VARCHAR(100),
+            ip_address VARCHAR(45) NOT NULL,
             user_agent TEXT,
-            success BOOLEAN DEFAULT TRUE,
+            location_id UUID,
+            action_type VARCHAR(50) NOT NULL,
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id VARCHAR(100),
+            screen_reference VARCHAR(20),
+            validation_codes JSONB,
+            business_rules_applied JSONB,
+            old_values JSONB,
+            new_values JSONB,
+            changed_fields JSONB,
+            files_created JSONB,
+            files_modified JSONB,
+            files_deleted JSONB,
+            execution_time_ms INTEGER,
+            database_queries INTEGER,
+            memory_usage_mb INTEGER,
+            success BOOLEAN NOT NULL DEFAULT TRUE,
             error_message TEXT,
-            session_id VARCHAR(255),
-            country_code VARCHAR(10) DEFAULT 'ZA'
+            warning_messages JSONB,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            country_code VARCHAR(2) NOT NULL DEFAULT 'ZA',
+            system_version VARCHAR(20),
+            module_name VARCHAR(50) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by UUID,
+            updated_by UUID,
+            is_active BOOLEAN DEFAULT TRUE,
+            deleted_at TIMESTAMP,
+            deleted_by UUID
         );
         """
         
-        # Create audit_events table 
-        audit_events_sql = """
-        CREATE TABLE IF NOT EXISTS audit_events (
-            id SERIAL PRIMARY KEY,
-            event_type VARCHAR(100) NOT NULL,
-            event_data JSONB,
-            user_id INTEGER,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            source VARCHAR(100),
-            severity VARCHAR(20) DEFAULT 'INFO',
-            country_code VARCHAR(10) DEFAULT 'ZA'
+        # Create file_metadata table matching the FileMetadata SQLAlchemy model
+        file_metadata_sql = """
+        CREATE TABLE IF NOT EXISTS file_metadata (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            file_id VARCHAR(100) NOT NULL UNIQUE,
+            original_filename VARCHAR(255) NOT NULL,
+            stored_filename VARCHAR(255) NOT NULL,
+            relative_path VARCHAR(500) NOT NULL,
+            file_size INTEGER NOT NULL,
+            mime_type VARCHAR(100) NOT NULL,
+            checksum VARCHAR(64),
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id VARCHAR(100) NOT NULL,
+            document_type VARCHAR(50),
+            country_code VARCHAR(2) NOT NULL DEFAULT 'ZA',
+            storage_location VARCHAR(100) NOT NULL,
+            uploaded_by UUID NOT NULL,
+            uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_accessed TIMESTAMP,
+            access_count INTEGER NOT NULL DEFAULT 0,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            is_backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+            last_backup_date TIMESTAMP,
+            encryption_status VARCHAR(20) NOT NULL DEFAULT 'none',
+            access_restrictions JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by UUID,
+            updated_by UUID,
+            deleted_at TIMESTAMP,
+            deleted_by UUID
         );
         """
         
         # Create indices for better performance
         audit_logs_indices = [
             "CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp);",
-            "CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);",
+            "CREATE INDEX IF NOT EXISTS idx_audit_logs_action_type ON audit_logs(action_type);",
             "CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);",
             "CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);",
-            "CREATE INDEX IF NOT EXISTS idx_audit_logs_country ON audit_logs(country_code);"
+            "CREATE INDEX IF NOT EXISTS idx_audit_logs_country ON audit_logs(country_code);",
+            "CREATE INDEX IF NOT EXISTS idx_audit_logs_transaction ON audit_logs(transaction_id);",
+            "CREATE INDEX IF NOT EXISTS idx_audit_logs_session ON audit_logs(session_id);"
         ]
         
-        audit_events_indices = [
-            "CREATE INDEX IF NOT EXISTS idx_audit_events_timestamp ON audit_events(timestamp);",
-            "CREATE INDEX IF NOT EXISTS idx_audit_events_type ON audit_events(event_type);",
-            "CREATE INDEX IF NOT EXISTS idx_audit_events_user ON audit_events(user_id);",
-            "CREATE INDEX IF NOT EXISTS idx_audit_events_country ON audit_events(country_code);"
+        file_metadata_indices = [
+            "CREATE INDEX IF NOT EXISTS idx_file_metadata_file_id ON file_metadata(file_id);",
+            "CREATE INDEX IF NOT EXISTS idx_file_metadata_entity ON file_metadata(entity_type, entity_id);",
+            "CREATE INDEX IF NOT EXISTS idx_file_metadata_uploaded_at ON file_metadata(uploaded_at);",
+            "CREATE INDEX IF NOT EXISTS idx_file_metadata_country ON file_metadata(country_code);",
+            "CREATE INDEX IF NOT EXISTS idx_file_metadata_active ON file_metadata(is_active);"
         ]
         
         results = {
@@ -79,13 +127,21 @@ async def create_audit_tables() -> Dict[str, Any]:
         
         try:
             with get_db_context() as session:
+                # Drop existing tables first to recreate with correct schema
+                try:
+                    session.execute(text("DROP TABLE IF EXISTS audit_logs CASCADE;"))
+                    session.execute(text("DROP TABLE IF EXISTS file_metadata CASCADE;"))
+                    results["tables_created"].append("dropped_existing_tables")
+                except Exception as e:
+                    results["errors"].append(f"Drop table warning: {str(e)}")
+                
                 # Create audit_logs table
                 session.execute(text(audit_logs_sql))
                 results["tables_created"].append("audit_logs")
                 
-                # Create audit_events table
-                session.execute(text(audit_events_sql))
-                results["tables_created"].append("audit_events")
+                # Create file_metadata table
+                session.execute(text(file_metadata_sql))
+                results["tables_created"].append("file_metadata")
                 
                 # Create indices for audit_logs
                 for index_sql in audit_logs_indices:
@@ -95,8 +151,8 @@ async def create_audit_tables() -> Dict[str, Any]:
                     except Exception as e:
                         results["errors"].append(f"Index creation error: {str(e)}")
                 
-                # Create indices for audit_events
-                for index_sql in audit_events_indices:
+                # Create indices for file_metadata
+                for index_sql in file_metadata_indices:
                     try:
                         session.execute(text(index_sql))
                         results["indices_created"].append(index_sql.split("idx_")[1].split(" ")[0])
@@ -141,7 +197,7 @@ async def check_database_tables() -> Dict[str, Any]:
             # Check specifically for audit tables
             audit_tables = {
                 "audit_logs": "audit_logs" in tables,
-                "audit_events": "audit_events" in tables
+                "file_metadata": "file_metadata" in tables
             }
             
             return {
