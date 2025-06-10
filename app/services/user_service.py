@@ -20,7 +20,7 @@ from app.schemas.user import (
     RoleCreate, RoleUpdate, PermissionCreate,
     UserLogin, UserListFilter
 )
-from app.core.security import SecurityManager
+from app.core.security import create_access_token, verify_password, get_password_hash
 from app.core.config import get_settings
 
 logger = structlog.get_logger()
@@ -31,7 +31,6 @@ class UserService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.security_manager = SecurityManager()
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
     # Authentication Methods
@@ -121,27 +120,30 @@ class UserService:
         """Create access and refresh tokens for user"""
         try:
             token_data = {
-                "sub": str(user.id),
-                "username": user.username,
+                "sub": user.username,  # Use username as subject
+                "user_id": str(user.id),
                 "roles": [role.name for role in user.roles],
                 "permissions": self._get_user_permissions(user)
             }
             
-            access_token = self.security_manager.create_access_token(token_data)
-            refresh_token = self.security_manager.create_refresh_token({"sub": str(user.id)})
+            # Create access token with 15 minute expiry
+            access_token = create_access_token(token_data, expires_delta=timedelta(minutes=15))
+            
+            # Create refresh token with 7 day expiry
+            refresh_token_data = {"sub": user.username, "user_id": str(user.id)}
+            refresh_token = create_access_token(refresh_token_data, expires_delta=timedelta(days=7))
             
             # Update user token info
-            user.current_token_id = access_token["jti"]
-            user.token_expires_at = access_token["expires_at"]
-            user.refresh_token_hash = self.pwd_context.hash(refresh_token["token"])
+            user.last_login_at = datetime.utcnow()
+            user.refresh_token_hash = self.pwd_context.hash(refresh_token)
             
             self.db.commit()
             
             return {
-                "access_token": access_token["token"],
-                "refresh_token": refresh_token["token"],
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "token_type": "bearer",
-                "expires_in": access_token["expires_in"]
+                "expires_in": 900  # 15 minutes in seconds
             }
             
         except Exception as e:
