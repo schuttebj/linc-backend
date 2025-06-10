@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.core.database import engine
-from app.models.user import User, Role, Permission, UserRole, RolePermission, UserStatus
+from app.models.user import User, Role, Permission, UserStatus, user_roles, role_permissions
 from app.schemas.user import UserCreate, RoleCreate, PermissionCreate
 from app.core.security import get_password_hash
 from datetime import datetime
@@ -389,13 +389,7 @@ def main():
                         # Add permissions to role
                         for perm_name in role_info["permissions"]:
                             if perm_name in permissions_created:
-                                role_permission = RolePermission(
-                                    role_id=role.id,
-                                    permission_id=permissions_created[perm_name].id,
-                                    created_at=datetime.utcnow(),
-                                    created_by="system"
-                                )
-                                db.add(role_permission)
+                                role.permissions.append(permissions_created[perm_name])
                         
                         roles_created[role.name] = role
                         print(f"  ✅ Created role: {role.display_name} ({len(role_info['permissions'])} permissions)")
@@ -437,13 +431,7 @@ def main():
                     
                     # Add super_admin role to admin user
                     if "super_admin" in roles_created:
-                        user_role = UserRole(
-                            user_id=admin_user.id,
-                            role_id=roles_created["super_admin"].id,
-                            created_at=datetime.utcnow(),
-                            created_by="system"
-                        )
-                        db.add(user_role)
+                        admin_user.roles.append(roles_created["super_admin"])
                     
                     print(f"  ✅ Created admin user: {admin_user.username}")
                     print(f"      📧 Email: {admin_user.email}")
@@ -519,13 +507,7 @@ def main():
                         
                         # Add role to user
                         if user_info["role"] in roles_created:
-                            user_role = UserRole(
-                                user_id=user.id,
-                                role_id=roles_created[user_info["role"]].id,
-                                created_at=datetime.utcnow(),
-                                created_by="system"
-                            )
-                            db.add(user_role)
+                            user.roles.append(roles_created[user_info["role"]])
                         
                         print(f"  ✅ Created user: {user.username} ({user_info['role']})")
                     else:

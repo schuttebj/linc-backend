@@ -19,11 +19,11 @@ from app.schemas.user import (
     PasswordReset, PasswordResetConfirm, PasswordChange,
     UserPermissionResponse, UserRoleResponse
 )
-from app.models.user import User, Role, Permission, UserRole, RolePermission, UserStatus
+from app.models.user import User, Role, Permission, UserStatus, user_roles, role_permissions
 from app.core.config import get_settings
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, verify_password, get_password_hash
+from datetime import datetime
 import uuid
-from app.core.security import get_password_hash
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -475,13 +475,7 @@ async def initialize_system(
         
         # Add permissions to admin role
         for perm in permissions_created.values():
-            role_permission = RolePermission(
-                role_id=admin_role.id,
-                permission_id=perm.id,
-                created_at=datetime.utcnow(),
-                created_by="system"
-            )
-            db.add(role_permission)
+            admin_role.permissions.append(perm)
         
         # Create admin user
         admin_user = User(
@@ -506,13 +500,7 @@ async def initialize_system(
         db.flush()
         
         # Add admin role to user
-        user_role = UserRole(
-            user_id=admin_user.id,
-            role_id=admin_role.id,
-            created_at=datetime.utcnow(),
-            created_by="system"
-        )
-        db.add(user_role)
+        admin_user.roles.append(admin_role)
         
         # Create test users
         test_users = [
