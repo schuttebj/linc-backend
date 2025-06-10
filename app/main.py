@@ -303,7 +303,7 @@ async def init_users():
                 first_name="System",
                 last_name="Administrator",
                 password_hash=get_password_hash("Admin123!"),
-                status=UserStatus.ACTIVE,
+                status=UserStatus.ACTIVE.value,
                 is_superuser=True,
                 require_password_change=True,
                 created_at=datetime.utcnow(),
