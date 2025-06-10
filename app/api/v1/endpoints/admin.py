@@ -23,7 +23,7 @@ async def create_audit_tables() -> Dict[str, Any]:
     try:
         # Create audit_logs table matching the AuditLog SQLAlchemy model
         audit_logs_sql = """
-        CREATE TABLE IF NOT EXISTS audit_logs (
+        CREATE TABLE audit_logs (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             transaction_id UUID NOT NULL DEFAULT gen_random_uuid(),
             session_id VARCHAR(128),
@@ -67,7 +67,7 @@ async def create_audit_tables() -> Dict[str, Any]:
         
         # Create file_metadata table matching the FileMetadata SQLAlchemy model
         file_metadata_sql = """
-        CREATE TABLE IF NOT EXISTS file_metadata (
+        CREATE TABLE file_metadata (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             file_id VARCHAR(100) NOT NULL UNIQUE,
             original_filename VARCHAR(255) NOT NULL,

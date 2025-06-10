@@ -574,6 +574,19 @@ class UserService:
         """Check if user has specific role"""
         return user.has_role(role_name)
     
+    async def get_user_permissions(self, user_id: str) -> List[str]:
+        """Get list of permissions for a specific user"""
+        try:
+            user = await self.get_user_by_id(user_id)
+            if not user:
+                return []
+            
+            return self._get_user_permissions(user)
+            
+        except Exception as e:
+            logger.error("Error getting user permissions", user_id=user_id, error=str(e))
+            return []
+    
     # Audit Methods
     async def _log_audit(
         self,
