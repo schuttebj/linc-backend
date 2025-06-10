@@ -19,19 +19,12 @@ from app.models.base import BaseModel
 
 class IdentificationType(PythonEnum):
     """
-    Identification document types from LmIdDocTypeCd lookup
-    CORRECTED MAPPING based on documentation:
-    - 01 = TRN (Tax Reference Number)
-    - 02 = RSA ID (South African ID Document) 
-    - 03 = Foreign ID (Foreign ID Document)
-    - 04 = BRN (Business Registration Number)
-    - 13 = Passport
+    TRANSACTION 57 - Introduction of Natural Person
+    V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction
+    Based on eNaTIS documentation requirements
     """
-    TRN = "01"              # Tax Reference Number (for organizations)
-    RSA_ID = "02"           # RSA ID Document (13 digits numeric)
-    FOREIGN_ID = "03"       # Foreign ID Document
-    BRN = "04"              # Business Registration Number (for organizations)
-    PASSPORT = "13"         # Passport
+    RSA_ID = "02"           # RSA ID Document (13 digits numeric) - V00017, V00018, V00019
+    FOREIGN_ID = "03"       # Foreign ID Document - V00013
 
 
 class PersonNature(PythonEnum):

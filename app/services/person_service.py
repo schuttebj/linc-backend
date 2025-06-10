@@ -749,13 +749,14 @@ class PersonService:
         if not validation.is_valid:
             return validation
         
-        # V00485: Natural person check (if required)
+        # V00485: Natural person check (Transaction 57)
         if person_nature in ['01', '02']:  # Natural persons
-            if id_type not in ['02', '03', '13']:  # Should not have TRN or BRN
+            # V00012: Only RSA ID (02) and Foreign ID (03) allowed for Transaction 57
+            if id_type not in ['02', '03']:
                 return ValidationResult(
                     is_valid=False,
-                    code="V00485",
-                    message="Natural persons cannot have organization ID types",
+                    code="V00012",
+                    message="V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction",
                     field="id_document_type_code"
                 )
         

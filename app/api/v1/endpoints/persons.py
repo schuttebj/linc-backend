@@ -223,20 +223,18 @@ async def add_person_alias(
     """
     Add new ID document/alias to person.
     
-    CORRECTED: Implements validation codes:
-    - V00001: Identification Type Mandatory
+    TRANSACTION 57 - Introduction of Natural Person
+    Implements validation codes:
+    - V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction
     - V00013: Identification Number Mandatory
     - V00016: Unacceptable Alias Check
     - V00017: Numeric validation for RSA ID
-    - V00018: ID Number length validation (13 chars for types 01,02,04)
+    - V00018: ID Number length validation (13 chars for RSA ID)
     - V00019: Check digit validation
     
-    ID Document Types:
-    - 01: TRN (Tax Reference Number)
+    ID Document Types (Transaction 57):
     - 02: RSA ID (South African ID Document)
-    - 03: Foreign ID Document  
-    - 04: BRN (Business Registration Number)
-    - 13: Passport
+    - 03: Foreign ID Document
     
     Requires 'person:update' permission.
     """
@@ -440,6 +438,67 @@ async def search_by_id_number(
     return service.get_persons_by_ids(person_ids)
 
 
+@router.get("/check-existence/{id_type}/{id_number}")
+async def check_person_existence(
+    id_type: str,
+    id_number: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check if person exists for Transaction 57 - V00033 validation.
+    
+    V00033: If person exists, display ERROR "This person already exists" and STOP processing
+    
+    Returns:
+    - exists: boolean indicating if person exists
+    - message: V00033 error message if exists
+    - person_summary: basic info if exists (for display only)
+    
+    Usage: Frontend calls this before allowing person registration.
+    If exists=true: Show V00033 error and prevent registration.
+    If exists=false: Allow new person registration to proceed.
+    """
+    logger.info(f"V00033 check - Person existence: {id_type}/{id_number}")
+    
+    # V00012: Validate ID type for Transaction 57
+    if id_type not in ["02", "03"]:
+        return {
+            "exists": False,
+            "error": "Invalid ID type for Transaction 57. Only RSA ID (02) and Foreign ID (03) allowed.",
+            "message": "V00012: Invalid identification type for person introduction"
+        }
+    
+    search_request = PersonSearchRequest(
+        id_number=id_number,
+        limit=1
+    )
+    
+    service = PersonService(db)
+    result = service.search_persons(search_request)
+    
+    if result.persons:
+        person = result.persons[0]
+        return {
+            "exists": True,
+            "message": "V00033: This person already exists",
+            "action": "STOP - Person introduction cannot proceed",
+            "person_summary": {
+                "name": person.business_or_surname,
+                "person_nature": person.person_nature,
+                "id_type": id_type,
+                "id_number": id_number,
+                "is_active": person.is_active
+            }
+        }
+    else:
+        return {
+            "exists": False,
+            "message": "Person not found - new registration can proceed",
+            "action": "CONTINUE - Allow person introduction"
+        }
+
+
 @router.get("/search/by-name/{name}", response_model=List[PersonListResponse])
 async def search_by_name(
     name: str,
@@ -501,24 +560,18 @@ async def get_person_natures():
 @router.get("/lookups/id-document-types", response_model=List[Dict[str, str]])
 async def get_id_document_types():
     """
-    Get available ID document types.
+    Get available ID document types for Transaction 57 - Introduction of Natural Person.
     
-    CORRECTED: Returns valid LmIdDocTypeCd lookup values:
-    - 01: TRN (Tax Reference Number)
+    TRANSACTION 57: Returns valid ID types per V00012:
     - 02: RSA ID (South African ID Document)
     - 03: Foreign ID Document
-    - 04: BRN (Business Registration Number)
-    - 13: Passport
     
     Useful for form dropdowns and validation.
     """
     return [
         {"code": doc_type.value, "name": doc_type.name, "description": {
-            "01": "Tax Reference Number (TRN)",
             "02": "RSA ID Document (13 digits numeric)",
-            "03": "Foreign ID Document", 
-            "04": "Business Registration Number (BRN)",
-            "13": "Passport"
+            "03": "Foreign ID Document"
         }.get(doc_type.value, doc_type.name)}
         for doc_type in IdentificationType
     ]

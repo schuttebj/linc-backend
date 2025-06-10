@@ -20,14 +20,12 @@ class ValidationResult(BaseModel):
 
 class IdentificationType(str, Enum):
     """
-    CORRECTED: Identification document types from LmIdDocTypeCd lookup
-    Based on documentation requirements
+    TRANSACTION 57 - Introduction of Natural Person
+    V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction
+    Based on eNaTIS documentation requirements
     """
-    TRN = "01"              # Tax Reference Number (for organizations)
-    RSA_ID = "02"           # RSA ID Document (13 digits numeric)
-    FOREIGN_ID = "03"       # Foreign ID Document
-    BRN = "04"              # Business Registration Number (for organizations)
-    PASSPORT = "13"         # Passport
+    RSA_ID = "02"           # RSA ID Document (13 digits numeric) - V00017, V00018, V00019
+    FOREIGN_ID = "03"       # Foreign ID Document - V00013
 
 
 class PersonNature(str, Enum):
@@ -89,9 +87,8 @@ class PersonAliasBase(BaseModel):
         if not v or v.strip() == "":
             raise ValueError('Identification number is mandatory (V00013)')
         
-        # V00018: 13 chars for types 01,02,04,97
-        thirteen_char_types = [IdentificationType.TRN, IdentificationType.RSA_ID, IdentificationType.BRN]
-        if doc_type in thirteen_char_types and len(v) != 13:
+        # V00018: 13 chars for RSA ID (02)
+        if doc_type == IdentificationType.RSA_ID and len(v) != 13:
             raise ValueError(f'This type requires 13 characters (V00018)')
         
         # V00017: Numeric for type 02 (RSA ID)
@@ -104,13 +101,10 @@ class PersonAliasBase(BaseModel):
                 if not cls._validate_rsa_id_checksum(v):
                     raise ValueError('Invalid RSA ID check digit (V00019)')
         
-        # V00019: Basic format validation for TRN/BRN
-        elif doc_type == IdentificationType.TRN:
-            if not v.isdigit():
-                raise ValueError('TRN must be numeric (V00019)')
-        elif doc_type == IdentificationType.BRN:
-            if not v.isdigit():
-                raise ValueError('BRN must be numeric (V00019)')
+        # V00019: Foreign ID validation
+        elif doc_type == IdentificationType.FOREIGN_ID:
+            # Foreign ID format validation can be added here if needed
+            pass
         
         return v
 
@@ -121,8 +115,9 @@ class PersonAliasBase(BaseModel):
         """
         doc_type = values.get('id_document_type_code')
         
-        # V00016: If ID Type ≠ 13 (Passport) → Alias status cannot be 3 (Unacceptable)
-        if doc_type != IdentificationType.PASSPORT and v == "3":
+        # V00016: Unacceptable Alias Check - not applicable for Transaction 57 (RSA ID/Foreign ID only)
+        # RSA ID and Foreign ID cannot have unacceptable status
+        if v == "3":
             raise ValueError('This ID type cannot have unacceptable status (V00016)')
         
         return v
@@ -360,10 +355,21 @@ class PersonBase(BaseModel):
 
     @validator('initials')
     def validate_initials(cls, v, values):
-        """Validate initials for natural persons only"""
+        """
+        V00051: Initials Mandatory for Natural Persons (Transaction 57)
+        V00001: Validate initials for natural persons only
+        """
         person_nature = values.get('person_nature')
+        
+        # V00051: Initials mandatory for natural persons
+        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+            if not v or v.strip() == "":
+                raise ValueError('V00051: Initials are mandatory for natural persons')
+        
+        # V00001: Initials only applicable to natural persons
         if v and person_nature not in [PersonNature.MALE, PersonNature.FEMALE]:
             raise ValueError('Initials only applicable to natural persons')
+        
         return v
 
     @validator('person_nature')

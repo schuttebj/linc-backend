@@ -65,13 +65,13 @@ class PersonValidationService:
                 action="Block form submission"
             )
         
-        # Check if valid ID type from LmIdDocTypeCd lookup
+        # V00012: Transaction 57 - Only RSA ID (02) and Foreign ID (03) allowed
         valid_types = [e.value for e in IdentificationType]
         if id_type not in valid_types:
             return ValidationResult(
                 is_valid=False,
-                code="V00001",
-                message=f"Invalid identification type. Must be one of: {', '.join(valid_types)}",
+                code="V00012",
+                message=f"V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction",
                 field="identification_type",
                 action="Block form submission"
             )
