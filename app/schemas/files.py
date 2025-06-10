@@ -75,6 +75,6 @@ class FileDeleteRequest(BaseModel):
 
 class BackupRequest(BaseModel):
     """Request model for backup operations"""
-    backup_type: str = Field(..., regex="^(daily|weekly|manual)$")
+    backup_type: str = Field(..., pattern="^(daily|weekly|manual)$")
     include_audit: bool = True
     compress: bool = True 
