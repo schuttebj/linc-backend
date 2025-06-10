@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # This will be overridden by environment variables in production
     DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/linc_database"
     
+    # Database SSL mode for production
+    DB_SSL_MODE: str = "prefer"  # prefer, require, disable
+    
     # File Storage Configuration
     FILE_STORAGE_BASE_PATH: str = "/var/linc-data"
     MAX_FILE_SIZE_MB: int = 10
