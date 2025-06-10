@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS Configuration
-    ALLOWED_ORIGINS: str = "*"
+    # For cross-domain credentials, cannot use wildcard - must specify exact origins
+    # Can be overridden with ALLOWED_ORIGINS environment variable
+    ALLOWED_ORIGINS: str = "https://linc-frontend-opal.vercel.app,http://localhost:3000,http://localhost:5173"
     ALLOWED_HOSTS: str = "*"
     
     @property
@@ -42,7 +44,10 @@ class Settings(BaseSettings):
             import json
             return json.loads(self.ALLOWED_ORIGINS)
         except:
-            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+            # Split by comma and clean whitespace
+            origins = [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+            # Filter out empty strings
+            return [origin for origin in origins if origin]
     
     @property
     def allowed_hosts_list(self) -> List[str]:

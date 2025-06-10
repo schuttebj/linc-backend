@@ -386,6 +386,25 @@ async def change_password(
         )
 
 
+@router.get("/test")
+async def test_auth_endpoint():
+    """
+    Test endpoint to verify auth routes are working
+    """
+    return {
+        "message": "Auth endpoints are working",
+        "available_endpoints": [
+            "POST /auth/login",
+            "POST /auth/logout", 
+            "POST /auth/refresh",
+            "GET /auth/me",
+            "POST /auth/change-password",
+            "GET /auth/test"
+        ],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 # Helper function to get current user from token
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials,

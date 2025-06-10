@@ -128,6 +128,7 @@ async def root():
         "status": "operational",
         "api_docs": f"{settings.API_V1_STR}/docs",
         "health_check": "/health",
+        "cors_origins": settings.allowed_origins_list,  # Debug CORS config
         "timestamp": time.time()
     }
 
