@@ -5,7 +5,7 @@ Matches corrected model structure and documentation requirements
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, validator, model_validator
 from datetime import datetime, date
 from enum import Enum
 
@@ -161,7 +161,6 @@ class PersonAliasResponse(PersonAliasBase, TimestampMixin):
     person_id: str
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -216,7 +215,6 @@ class NaturalPersonResponse(NaturalPersonBase, TimestampMixin):
     gender: Optional[str] = Field(description="Gender derived from person.person_nature")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -243,28 +241,24 @@ class PersonAddressBase(BaseModel):
     country_code: str = Field(default="ZA", max_length=3, description="Country code")
     province_code: Optional[str] = Field(None, max_length=10, description="Province code")
 
-    @root_validator
-    def validate_address_rules(cls, values):
+    @model_validator(mode='after')
+    def validate_address_rules(self):
         """
         Implements address validation rules V00095, V00098, V00107
         """
-        address_type = values.get('address_type')
-        address_line_1 = values.get('address_line_1')
-        postal_code = values.get('postal_code')
-        
         # V00095: Line 1 mandatory for postal addresses
-        if address_type == AddressType.POSTAL and (not address_line_1 or address_line_1.strip() == ""):
+        if self.address_type == AddressType.POSTAL and (not self.address_line_1 or self.address_line_1.strip() == ""):
             raise ValueError('Postal address line 1 is mandatory (V00095)')
         
         # V00098: Postal code mandatory for postal addresses
-        if address_type == AddressType.POSTAL and (not postal_code or postal_code.strip() == ""):
+        if self.address_type == AddressType.POSTAL and (not self.postal_code or self.postal_code.strip() == ""):
             raise ValueError('Postal code is mandatory for postal addresses (V00098)')
         
         # V00107: Postal code mandatory if street address entered
-        if address_type == AddressType.STREET and address_line_1 and (not postal_code or postal_code.strip() == ""):
+        if self.address_type == AddressType.STREET and self.address_line_1 and (not self.postal_code or self.postal_code.strip() == ""):
             raise ValueError('Postal code is mandatory if street address entered (V00107)')
         
-        return values
+        return self
 
 
 class PersonAddressCreate(PersonAddressBase):
@@ -297,7 +291,6 @@ class PersonAddressResponse(PersonAddressBase, TimestampMixin):
     formatted_address: str = Field(description="Formatted address string")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -328,7 +321,6 @@ class OrganizationResponse(OrganizationBase, TimestampMixin):
     person_id: str
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -385,28 +377,24 @@ class PersonCreate(PersonBase):
     aliases: Optional[List[PersonAliasCreate]] = Field(default_factory=list, description="ID documents")
     addresses: Optional[List[PersonAddressCreate]] = Field(default_factory=list, description="Addresses")
 
-    @root_validator
-    def validate_person_data(cls, values):
+    @model_validator(mode='after')
+    def validate_person_data(self):
         """
         Comprehensive person creation validation
         """
-        person_nature = values.get('person_nature')
-        natural_person = values.get('natural_person')
-        organization = values.get('organization')
-        
         # V00485: Natural person validation
-        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
-            if not natural_person:
+        if self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+            if not self.natural_person:
                 raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
-            if organization:
+            if self.organization:
                 raise ValueError('Organization details not applicable for natural persons')
         else:
             # Organization
-            if natural_person:
+            if self.natural_person:
                 raise ValueError('Natural person details not applicable for organizations')
             # Organization details are optional for now
         
-        return values
+        return self
 
 
 class PersonUpdate(BaseModel):
@@ -442,7 +430,6 @@ class PersonResponse(PersonBase, TimestampMixin):
         return str(v) if v else None
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -462,7 +449,6 @@ class PersonListResponse(BaseModel):
         return str(v) if v else None
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
