@@ -4,7 +4,7 @@ Single-country deployment with simplified routing
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import persons, countries, health, licenses, auth, users, files
+from app.api.v1.endpoints import persons, countries, health, licenses, auth, users, files, monitoring
 
 api_router = APIRouter()
 
@@ -55,4 +55,11 @@ api_router.include_router(
     files.router,
     prefix="/files",
     tags=["files"]
+)
+
+# Automatic endpoint monitoring
+api_router.include_router(
+    monitoring.router,
+    prefix="/monitoring",
+    tags=["monitoring"]
 ) 
