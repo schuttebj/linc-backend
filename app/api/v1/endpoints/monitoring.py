@@ -30,40 +30,62 @@ class EndpointMonitor:
         self.base_url = base_url
         self.api_v1 = f"{base_url}/api/v1"
         
-        # Define all endpoints to monitor
+        # Define all endpoints to monitor - Comprehensive list based on OpenAPI docs
         self.monitored_endpoints = [
             # Health endpoints (no auth)
             {"method": "GET", "path": "/", "auth_required": False, "category": "health"},
             {"method": "GET", "path": "/health", "auth_required": False, "category": "health"},
             {"method": "GET", "path": "/health/database", "auth_required": False, "category": "health"},
             
-            # Authentication endpoints
+            # API Health endpoints
+            {"method": "GET", "path": "/api/v1/health/", "auth_required": True, "category": "health"},
+            {"method": "GET", "path": "/api/v1/health/detailed", "auth_required": True, "category": "health"},
+            {"method": "GET", "path": "/api/v1/health/database", "auth_required": True, "category": "health"},
+            
+            # Authentication endpoints - GET only (no side effects)
             {"method": "GET", "path": "/api/v1/auth/me", "auth_required": True, "category": "auth"},
             {"method": "GET", "path": "/api/v1/auth/permissions", "auth_required": True, "category": "auth"},
+            {"method": "GET", "path": "/api/v1/auth/roles", "auth_required": True, "category": "auth"},
             
-            # Health endpoints (API)
-            {"method": "GET", "path": "/api/v1/health/", "auth_required": True, "category": "health"},
+            # User management endpoints - GET only (safe to test)
+            {"method": "GET", "path": "/api/v1/users/", "auth_required": True, "category": "users"},
+            {"method": "GET", "path": "/api/v1/users/roles/", "auth_required": True, "category": "users"},
+            {"method": "GET", "path": "/api/v1/users/permissions/", "auth_required": True, "category": "users"},
             
             # Country configuration endpoints
             {"method": "GET", "path": "/api/v1/countries/current", "auth_required": True, "category": "countries"},
             {"method": "GET", "path": "/api/v1/countries/modules", "auth_required": True, "category": "countries"},
+            {"method": "GET", "path": "/api/v1/countries/license-types", "auth_required": True, "category": "countries"},
+            {"method": "GET", "path": "/api/v1/countries/printing-config", "auth_required": True, "category": "countries"},
+            {"method": "GET", "path": "/api/v1/countries/fees", "auth_required": True, "category": "countries"},
             
-            # Person management endpoints
+            # Person management endpoints - GET and lookup endpoints only
+            {"method": "GET", "path": "/api/v1/persons/", "auth_required": True, "category": "persons"},
             {"method": "POST", "path": "/api/v1/persons/search", "auth_required": True, "category": "persons"},
+            {"method": "GET", "path": "/api/v1/persons/statistics/summary", "auth_required": True, "category": "persons"},
             {"method": "GET", "path": "/api/v1/persons/lookups/person-natures", "auth_required": True, "category": "persons"},
+            {"method": "GET", "path": "/api/v1/persons/lookups/id-document-types", "auth_required": True, "category": "persons"},
+            {"method": "GET", "path": "/api/v1/persons/lookups/address-types", "auth_required": True, "category": "persons"},
             
-            # License management endpoints
+            # License management endpoints - GET only
+            {"method": "GET", "path": "/api/v1/licenses/applications", "auth_required": True, "category": "licenses"},
+            {"method": "GET", "path": "/api/v1/licenses/test-centers", "auth_required": True, "category": "licenses"},
             {"method": "GET", "path": "/api/v1/licenses/license-types", "auth_required": True, "category": "licenses"},
             {"method": "GET", "path": "/api/v1/licenses/application-statuses", "auth_required": True, "category": "licenses"},
             
-            # File storage endpoints
+            # File storage endpoints - GET only (safe to test)
+            {"method": "GET", "path": "/api/v1/files/storage/metrics", "auth_required": True, "category": "files"},
             {"method": "GET", "path": "/api/v1/files/storage/health", "auth_required": True, "category": "files"},
-            
-            # User management endpoints
-            {"method": "GET", "path": "/api/v1/users/", "auth_required": True, "category": "users"},
+            {"method": "GET", "path": "/api/v1/files/storage/largest-files", "auth_required": True, "category": "files"},
             
             # Monitoring endpoints (self-test)
-            {"method": "GET", "path": "/api/v1/monitoring/health/history?hours=1", "auth_required": True, "category": "monitoring"}
+            {"method": "GET", "path": "/api/v1/monitoring/health/endpoints", "auth_required": True, "category": "monitoring"},
+            {"method": "GET", "path": "/api/v1/monitoring/health/uptime-report", "auth_required": True, "category": "monitoring"},
+            {"method": "GET", "path": "/api/v1/monitoring/health/history?hours=1", "auth_required": True, "category": "monitoring"},
+            
+            # Admin endpoints - GET only (safe to test)
+            {"method": "GET", "path": "/api/v1/admin/database/check-tables", "auth_required": True, "category": "admin"},
+            {"method": "GET", "path": "/api/v1/admin/system/info", "auth_required": True, "category": "admin"}
         ]
     
     async def check_endpoint(self, session: aiohttp.ClientSession, endpoint: Dict[str, Any], 
