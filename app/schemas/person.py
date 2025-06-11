@@ -362,12 +362,12 @@ class PersonBase(BaseModel):
         person_nature = values.get('person_nature')
         
         # V00051: Initials mandatory for natural persons
-        if person_nature in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
+        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
             if not v or v.strip() == "":
                 raise ValueError('V00051: Initials are mandatory for natural persons')
         
         # V00001: Initials only applicable to natural persons
-        if v and person_nature not in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
+        if v and person_nature not in [PersonNature.MALE, PersonNature.FEMALE]:
             raise ValueError('Initials only applicable to natural persons')
         
         return v
