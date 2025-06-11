@@ -397,7 +397,7 @@ class PersonCreate(PersonBase):
         Comprehensive person creation validation
         """
         # V00485: Natural person validation
-        if self.person_nature in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
+        if self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
             if not self.natural_person:
                 raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
             if self.organization:
