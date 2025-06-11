@@ -163,6 +163,11 @@ class PersonAliasResponse(PersonAliasBase, TimestampMixin):
     id: str
     person_id: str
 
+    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID to string for API response"""
+        return str(v) if v else None
+
     class Config:
         from_attributes = True
 
@@ -216,6 +221,11 @@ class NaturalPersonResponse(NaturalPersonBase, TimestampMixin):
     full_name: str = Field(description="Complete full name")
     age: int = Field(description="Current age")
     gender: Optional[str] = Field(description="Gender derived from person.person_nature")
+
+    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID to string for API response"""
+        return str(v) if v else None
 
     class Config:
         from_attributes = True
@@ -293,6 +303,11 @@ class PersonAddressResponse(PersonAddressBase, TimestampMixin):
     city_validated: bool = Field(description="City validated against ADDRCORR")
     formatted_address: str = Field(description="Formatted address string")
 
+    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID to string for API response"""
+        return str(v) if v else None
+
     class Config:
         from_attributes = True
 
@@ -322,6 +337,11 @@ class OrganizationResponse(OrganizationBase, TimestampMixin):
     """Schema for organization response"""
     id: str
     person_id: str
+
+    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    def convert_uuid_to_string(cls, v):
+        """Convert UUID to string for API response"""
+        return str(v) if v else None
 
     class Config:
         from_attributes = True
