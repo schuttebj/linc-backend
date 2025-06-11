@@ -425,6 +425,10 @@ async def search_by_id_number(
     
     Requires 'person:read' permission.
     """
+    logger.info(f"🔍 ENDPOINT REACHED: search_by_id_number for ID: {id_number}")
+    logger.info(f"🔍 Database session: {db}")
+    logger.info(f"🔍 Current user: {current_user}")
+    
     search_request = PersonSearchRequest(
         id_number=id_number,
         limit=100  # Allow more results for ID searches
