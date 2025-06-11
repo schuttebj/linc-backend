@@ -362,12 +362,12 @@ class PersonBase(BaseModel):
         person_nature = values.get('person_nature')
         
         # V00051: Initials mandatory for natural persons
-        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+        if person_nature in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
             if not v or v.strip() == "":
                 raise ValueError('V00051: Initials are mandatory for natural persons')
         
         # V00001: Initials only applicable to natural persons
-        if v and person_nature not in [PersonNature.MALE, PersonNature.FEMALE]:
+        if v and person_nature not in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
             raise ValueError('Initials only applicable to natural persons')
         
         return v
@@ -397,7 +397,7 @@ class PersonCreate(PersonBase):
         Comprehensive person creation validation
         """
         # V00485: Natural person validation
-        if self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+        if self.person_nature in [PersonNature.MALE.value, PersonNature.FEMALE.value]:
             if not self.natural_person:
                 raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
             if self.organization:
