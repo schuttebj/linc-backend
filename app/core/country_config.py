@@ -52,6 +52,12 @@ class CountryConfig(BaseModel):
     # Address Configuration
     postal_code_pattern: Optional[str] = None
     postal_code_length: Optional[int] = None
+    provinces: Dict[str, str] = {}  # Code -> Name mapping
+    
+    # Phone Configuration
+    phone_country_code: str = ""
+    phone_area_codes: List[str] = []
+    phone_format_pattern: Optional[str] = None
     
     # System Parameters
     default_language: str
@@ -128,6 +134,22 @@ COUNTRY_CONFIGURATIONS = {
         # Address Configuration
         postal_code_pattern=r"^\d{4}$",
         postal_code_length=4,
+        provinces={
+            "EC": "Eastern Cape",
+            "FS": "Free State", 
+            "GP": "Gauteng",
+            "KZN": "KwaZulu-Natal",
+            "LP": "Limpopo",
+            "MP": "Mpumalanga",
+            "NC": "Northern Cape",
+            "NW": "North West",
+            "WC": "Western Cape"
+        },
+        
+        # Phone Configuration
+        phone_country_code="+27",
+        phone_area_codes=["10", "11", "12", "13", "14", "15", "16", "17", "18", "21", "22", "23", "27", "28", "31", "32", "33", "35", "36", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "51", "53", "54", "56", "57", "58"],
+        phone_format_pattern=r"^\+27\d{9}$",
         
         # System Parameters
         default_language="EN",
@@ -384,6 +406,41 @@ class CountryConfigManager:
     def get_supported_license_types(self) -> List[str]:
         """Get list of supported license types for current country"""
         return self.config.license_types
+    
+    def get_provinces(self) -> Dict[str, str]:
+        """Get province code to name mapping for current country"""
+        return self.config.provinces
+    
+    def validate_province_code(self, province_code: str) -> bool:
+        """Validate province code for current country"""
+        return province_code in self.config.provinces
+    
+    def get_phone_country_code(self) -> str:
+        """Get phone country code for current country"""
+        return self.config.phone_country_code
+    
+    def get_phone_area_codes(self) -> List[str]:
+        """Get supported phone area codes for current country"""
+        return self.config.phone_area_codes
+    
+    def validate_phone_number(self, phone_number: str) -> bool:
+        """Validate phone number format for current country"""
+        if self.config.phone_format_pattern:
+            import re
+            return bool(re.match(self.config.phone_format_pattern, phone_number))
+        return True
+    
+    def format_phone_number(self, phone_number: str, area_code: str = "") -> str:
+        """Format phone number to international format"""
+        # Remove all non-digits
+        digits_only = ''.join(filter(str.isdigit, phone_number))
+        
+        # Remove leading 0 if present (local format)
+        if digits_only.startswith('0'):
+            digits_only = digits_only[1:]
+        
+        # Add country code
+        return f"{self.config.phone_country_code}{digits_only}"
 
 
 # Global country config manager instance

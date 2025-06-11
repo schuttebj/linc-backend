@@ -75,6 +75,7 @@ class PersonAliasBase(BaseModel):
     name_in_document: Optional[str] = Field(None, max_length=200, description="Name as in document (ALIAS.NAMEINDOC)")
     alias_status: str = Field(default="1", pattern="^[123]$", description="1=Current, 2=Historical, 3=Unacceptable")
     is_current: bool = Field(default=True, description="Current/active alias")
+    id_document_expiry_date: Optional[date] = Field(None, description="ID document expiry date (required for foreign documents)")
 
     @validator('id_document_number')
     def validate_id_number(cls, v, values):
@@ -122,6 +123,27 @@ class PersonAliasBase(BaseModel):
         
         return v
 
+    @validator('id_document_expiry_date')
+    def validate_expiry_date(cls, v, values):
+        """
+        Validate ID document expiry date
+        V00039: Must be future date for foreign documents
+        """
+        doc_type = values.get('id_document_type_code')
+        
+        # Require expiry date for foreign documents
+        if doc_type == IdentificationType.FOREIGN_ID:
+            if not v:
+                raise ValueError('Expiry date is required for foreign documents')
+            if v <= date.today():
+                raise ValueError('Expiry date must be in the future')
+        
+        # Optional validation for other document types
+        if v and v <= date.today():
+            raise ValueError('Expiry date must be in the future')
+        
+        return v
+
     @staticmethod
     def _validate_rsa_id_checksum(id_number: str) -> bool:
         """Basic RSA ID checksum validation"""
@@ -156,6 +178,7 @@ class PersonAliasUpdate(BaseModel):
     name_in_document: Optional[str] = Field(None, max_length=200)
     alias_status: Optional[str] = Field(None, pattern="^[123]$")
     is_current: Optional[bool] = None
+    id_document_expiry_date: Optional[date] = Field(None, description="ID document expiry date")
 
 
 class PersonAliasResponse(PersonAliasBase, TimestampMixin):
@@ -183,7 +206,7 @@ class NaturalPersonBase(BaseModel):
     full_name_3: Optional[str] = Field(None, max_length=32, description="Additional name (NATPER.FULLNAME3) - V00062: Optional")
     birth_date: Optional[date] = Field(None, description="Date of birth (NATPER.BIRTHD) - V00065: Optional, auto-derived from RSA ID")
     email_address: Optional[EmailStr] = Field(None, description="Personal email (NATPER.EMAILADDR)")
-    preferred_language_code: Optional[str] = Field(None, max_length=10, description="Language preference (NATPER.PREFLANGCD) - V00068: Mandatory")
+    preferred_language_code: Optional[str] = Field(None, max_length=10, description="Personal language preference (NATPER.PREFLANGCD)")
 
     @validator('birth_date')
     def validate_birth_date(cls, v):
@@ -361,14 +384,11 @@ class PersonBase(BaseModel):
     nationality_code: str = Field(default="ZA", max_length=3, description="Nationality code (PER.NATNPOPGRPCD)")
     email_address: Optional[EmailStr] = Field(None, description="Email address (NATPER.EMAILADDR)")
     
-    # Phone numbers from NATPER table
-    home_phone_code: Optional[str] = Field(None, max_length=10, description="Home phone area code (NATPER.HTELCD)")
-    home_phone_number: Optional[str] = Field(None, max_length=10, description="Home phone number (NATPER.HTELN)")
-    work_phone_code: Optional[str] = Field(None, max_length=10, description="Work phone area code (NATPER.WTELCD)")
-    work_phone_number: Optional[str] = Field(None, max_length=15, description="Work phone number (NATPER.WTELN)")
-    cell_phone: Optional[str] = Field(None, max_length=15, description="Cell phone number (NATPER.CELLN)")
-    fax_code: Optional[str] = Field(None, max_length=10, description="Fax area code (NATPER.FAXCD)")
-    fax_number: Optional[str] = Field(None, max_length=10, description="Fax number (NATPER.FAXN)")
+    # Phone numbers - International format
+    home_phone_number: Optional[str] = Field(None, max_length=20, description="Home phone number in international format (+27...)")
+    work_phone_number: Optional[str] = Field(None, max_length=20, description="Work phone number in international format (+27...)")
+    cell_phone: Optional[str] = Field(None, max_length=20, description="Cell phone number in international format (+27...)")
+    fax_number: Optional[str] = Field(None, max_length=20, description="Fax number in international format (+27...)")
     
     preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
     current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
@@ -406,6 +426,30 @@ class PersonBase(BaseModel):
         # V00001: Initials only applicable to natural persons
         if v and not is_natural_person:
             raise ValueError('Initials only applicable to natural persons')
+        
+        return v
+
+    @validator('home_phone_number', 'work_phone_number', 'cell_phone', 'fax_number', allow_reuse=True)
+    def validate_phone_numbers(cls, v):
+        """
+        Validate phone numbers in international format
+        """
+        if v:
+            # Remove spaces and special characters except +
+            cleaned = ''.join(c for c in v if c.isdigit() or c == '+')
+            
+            # Must start with + and have at least 10 digits
+            if not cleaned.startswith('+'):
+                raise ValueError('Phone number must be in international format (start with +)')
+            
+            digits_only = cleaned[1:]  # Remove +
+            if not digits_only.isdigit():
+                raise ValueError('Phone number must contain only digits after country code')
+            
+            if len(digits_only) < 10 or len(digits_only) > 15:
+                raise ValueError('Phone number must have 10-15 digits after country code')
+            
+            return cleaned
         
         return v
 
@@ -485,13 +529,10 @@ class PersonUpdate(BaseModel):
     initials: Optional[str] = Field(None, max_length=3, pattern="^[A-Z]*$")
     nationality_code: Optional[str] = Field(None, max_length=3)
     email_address: Optional[EmailStr] = None
-    home_phone_code: Optional[str] = Field(None, max_length=10)
-    home_phone_number: Optional[str] = Field(None, max_length=10)
-    work_phone_code: Optional[str] = Field(None, max_length=10)
-    work_phone_number: Optional[str] = Field(None, max_length=15)
-    cell_phone: Optional[str] = Field(None, max_length=15)
-    fax_code: Optional[str] = Field(None, max_length=10)
-    fax_number: Optional[str] = Field(None, max_length=10)
+    home_phone_number: Optional[str] = Field(None, max_length=20)
+    work_phone_number: Optional[str] = Field(None, max_length=20)
+    cell_phone: Optional[str] = Field(None, max_length=20)
+    fax_number: Optional[str] = Field(None, max_length=20)
     preferred_language: Optional[str] = Field(None, max_length=10)
     current_status_alias: Optional[str] = Field(None, pattern="^[123]$")
     is_active: Optional[bool] = None

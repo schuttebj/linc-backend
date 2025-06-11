@@ -83,14 +83,11 @@ class Person(BaseModel):
     # Source: NATPER.EMAILADDR (50 chars, SCHAR4 format)
     email_address = Column(String(50), nullable=True, comment="Email address (NATPER.EMAILADDR)")
     
-    # Phone numbers - source: NATPER table
-    home_phone_code = Column(String(10), nullable=True, comment="Home phone area code (NATPER.HTELCD)")
-    home_phone_number = Column(String(10), nullable=True, comment="Home phone number (NATPER.HTELN)")
-    work_phone_code = Column(String(10), nullable=True, comment="Work phone area code (NATPER.WTELCD)")
-    work_phone_number = Column(String(15), nullable=True, comment="Work phone number (NATPER.WTELN)")
-    cell_phone = Column(String(15), nullable=True, comment="Cell phone number (NATPER.CELLN)")
-    fax_code = Column(String(10), nullable=True, comment="Fax area code (NATPER.FAXCD)")
-    fax_number = Column(String(10), nullable=True, comment="Fax number (NATPER.FAXN)")
+    # Phone numbers - International format
+    home_phone_number = Column(String(20), nullable=True, comment="Home phone number in international format (+27...)")
+    work_phone_number = Column(String(20), nullable=True, comment="Work phone number in international format (+27...)")
+    cell_phone = Column(String(20), nullable=True, comment="Cell phone number in international format (+27...)")
+    fax_number = Column(String(20), nullable=True, comment="Fax number in international format (+27...)")
     
     # Preferences and settings
     # Source: NATPER.PREFLANGCD - maps to LmPrefLang lookup
@@ -153,6 +150,9 @@ class PersonAlias(BaseModel):
     # V00757: Current Alias Warning - status should be 1 for current
     alias_status = Column(String(1), nullable=False, default="1", comment="1=Current, 2=Historical, 3=Unacceptable")
     is_current = Column(Boolean, nullable=False, default=True, comment="Current/active alias")
+    
+    # Document expiry date (required for foreign documents)
+    id_document_expiry_date = Column(Date, nullable=True, comment="ID document expiry date (required for foreign documents)")
     
     # Audit fields
     created_at = Column(DateTime, nullable=False, default=func.now())
