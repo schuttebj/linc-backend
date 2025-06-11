@@ -162,10 +162,22 @@ async def get_current_user(
     """
     from app.models.user import User, UserStatus
     
-    logger.info("get_current_user starting...")
-    logger.info(f"🔑 Raw token received: {credentials.credentials[:20]}...{credentials.credentials[-20:] if len(credentials.credentials) > 40 else credentials.credentials}")
-    logger.info(f"🔑 Token length: {len(credentials.credentials)}")
+    logger.info("🚨 get_current_user starting...")
+    logger.info(f"🚨 Credentials object: {credentials}")
+    logger.info(f"🚨 Credentials type: {type(credentials)}")
     
+    if credentials:
+        logger.info(f"🚨 Credentials.scheme: {credentials.scheme}")
+        logger.info(f"🚨 Credentials.credentials: {credentials.credentials}")
+        logger.info(f"🔑 Raw token received: {credentials.credentials[:20]}...{credentials.credentials[-20:] if len(credentials.credentials) > 40 else credentials.credentials}")
+        logger.info(f"🔑 Token length: {len(credentials.credentials)}")
+    else:
+        logger.error("🚨 No credentials received!")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No authorization credentials provided"
+        )
+
     try:
         # Decode token (same as auth endpoints)
         logger.info("🔑 About to decode token...")
