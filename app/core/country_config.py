@@ -472,4 +472,4 @@ class CountryConfigManager:
 
 
 # Global country config manager instance
-country_config = CountryConfigManager() 
+country_config_manager = CountryConfigManager() 
