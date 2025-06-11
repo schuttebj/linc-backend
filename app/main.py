@@ -1,3 +1,5 @@
+# app/main.py - LINC Driver's Licensing System Backend
+# Version: 2025-06-11 - Fixed initials validation for natural persons
 """
 LINC Driver's Licensing System - Main Application
 FastAPI backend for modular, country-customizable driver licensing platform
