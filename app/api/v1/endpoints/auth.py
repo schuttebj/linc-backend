@@ -141,11 +141,11 @@ async def login(
         permissions = []
         roles = []
         
-        for user_role in user.roles:
-            roles.append(user_role.role.name)
-            for role_permission in user_role.role.permissions:
-                if role_permission.permission.name not in permissions:
-                    permissions.append(role_permission.permission.name)
+        for role in user.roles:
+            roles.append(role.name)
+            for permission in role.permissions:
+                if permission.name not in permissions:
+                    permissions.append(permission.name)
         
         # Return login response
         return LoginResponse(
@@ -318,11 +318,11 @@ async def get_current_user_info(
         permissions = []
         roles = []
         
-        for user_role in user.roles:
-            roles.append(user_role.role.name)
-            for role_permission in user_role.role.permissions:
-                if role_permission.permission.name not in permissions:
-                    permissions.append(role_permission.permission.name)
+        for role in user.roles:
+            roles.append(role.name)
+            for permission in role.permissions:
+                if permission.name not in permissions:
+                    permissions.append(permission.name)
         
         return UserResponse(
             id=str(user.id),
