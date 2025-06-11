@@ -361,13 +361,21 @@ class PersonBase(BaseModel):
         """
         person_nature = values.get('person_nature')
         
+        # Handle both string and enum values during validation
+        # person_nature might be a string ("01", "02") or enum (PersonNature.MALE, PersonNature.FEMALE)
+        is_natural_person = False
+        if isinstance(person_nature, str):
+            is_natural_person = person_nature in ["01", "02"]
+        else:
+            is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
+        
         # V00051: Initials mandatory for natural persons
-        if person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+        if is_natural_person:
             if not v or v.strip() == "":
                 raise ValueError('V00051: Initials are mandatory for natural persons')
         
         # V00001: Initials only applicable to natural persons
-        if v and person_nature not in [PersonNature.MALE, PersonNature.FEMALE]:
+        if v and not is_natural_person:
             raise ValueError('Initials only applicable to natural persons')
         
         return v
@@ -397,7 +405,14 @@ class PersonCreate(PersonBase):
         Comprehensive person creation validation
         """
         # V00485: Natural person validation
-        if self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]:
+        # Handle both string and enum values
+        is_natural_person = False
+        if isinstance(self.person_nature, str):
+            is_natural_person = self.person_nature in ["01", "02"]
+        else:
+            is_natural_person = self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]
+        
+        if is_natural_person:
             if not self.natural_person:
                 raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
             if self.organization:
