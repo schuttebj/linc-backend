@@ -94,7 +94,7 @@ async def login(
             )
         
         # Check if user is active
-        if user.status != UserStatus.ACTIVE:
+        if user.status != UserStatus.ACTIVE.value:
             logger.warning(
                 f"Login failed - account inactive: {login_data.username}, "
                 f"IP: {login_data.ip_address or request.client.host}"
@@ -158,7 +158,7 @@ async def login(
                 email=user.email,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                is_active=user.status == UserStatus.ACTIVE,
+                is_active=user.status == UserStatus.ACTIVE.value,
                 is_superuser=user.is_superuser,
                 roles=roles,
                 permissions=permissions,
@@ -216,7 +216,7 @@ async def refresh_token(
         # Get user from database
         user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
         
-        if not user or user.status != UserStatus.ACTIVE:
+        if not user or user.status != UserStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"
@@ -330,7 +330,7 @@ async def get_current_user_info(
             email=user.email,
             first_name=user.first_name,
             last_name=user.last_name,
-            is_active=user.status == UserStatus.ACTIVE,
+            is_active=user.status == UserStatus.ACTIVE.value,
             is_superuser=user.is_superuser,
             roles=roles,
             permissions=permissions,
@@ -434,7 +434,7 @@ async def get_current_user(
                 detail="User not found"
             )
         
-        if user.status != UserStatus.ACTIVE:
+        if user.status != UserStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is inactive"
