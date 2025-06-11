@@ -359,13 +359,22 @@ class PersonBase(BaseModel):
         V00051: Initials Mandatory for Natural Persons (Transaction 57)
         V00001: Validate initials for natural persons only
         """
+        # Get person_nature from values - it might be string or enum
         person_nature = values.get('person_nature')
+        
+        # Handle case where person_nature might not be set yet
+        if person_nature is None:
+            # If initials provided but no person_nature, we can't validate yet
+            # Let this pass and validate in model_validator later
+            return v
         
         # Handle both string and enum values during validation
         # person_nature might be a string ("01", "02") or enum (PersonNature.MALE, PersonNature.FEMALE)
         is_natural_person = False
         if isinstance(person_nature, str):
             is_natural_person = person_nature in ["01", "02"]
+        elif hasattr(person_nature, 'value'):  # enum
+            is_natural_person = person_nature.value in ["01", "02"]
         else:
             is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
         
@@ -387,6 +396,30 @@ class PersonBase(BaseModel):
         """
         # This validation will be context-specific in the service layer
         return v
+    
+    @model_validator(mode='after')
+    def validate_complete_person_data(self):
+        """
+        Final validation after all fields are processed
+        """
+        # Double-check initials validation after all fields are set
+        person_nature = self.person_nature
+        initials = self.initials
+        
+        # Handle both string and enum values
+        is_natural_person = False
+        if isinstance(person_nature, str):
+            is_natural_person = person_nature in ["01", "02"]
+        elif hasattr(person_nature, 'value'):  # enum
+            is_natural_person = person_nature.value in ["01", "02"]
+        else:
+            is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
+        
+        # V00001: Initials only applicable to natural persons
+        if initials and not is_natural_person:
+            raise ValueError('Initials only applicable to natural persons')
+        
+        return self
 
 
 class PersonCreate(PersonBase):
