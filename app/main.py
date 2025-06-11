@@ -243,12 +243,20 @@ async def init_users():
         import uuid
         
         with get_db_context() as db:
-            # Check if admin user already exists
+            # Check if admin user already exists and update status if needed
             existing_admin = db.query(User).filter(User.username == "admin").first()
             if existing_admin:
+                # Update existing admin user to ensure it's ACTIVE
+                existing_admin.status = UserStatus.ACTIVE.value
+                existing_admin.is_active = True
+                existing_admin.password_hash = get_password_hash("Admin123!")
+                db.commit()
                 return {
-                    "status": "info",
-                    "message": "Default users already exist",
+                    "status": "success",
+                    "message": "Admin user updated to ACTIVE status",
+                    "username": "admin", 
+                    "password": "Admin123!",
+                    "status_set": "ACTIVE",
                     "timestamp": time.time()
                 }
             
