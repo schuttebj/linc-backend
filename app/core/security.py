@@ -10,6 +10,7 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPBasic, HTTPBasicCredentials, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import secrets
+import uuid
 
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -158,11 +159,17 @@ async def get_current_user(
         raise credentials_exception
     
     # Get user ID from token payload (sub field contains user ID, not username)
-    user_id = payload.get("sub")
-    if user_id is None:
+    user_id_str = payload.get("sub")
+    if user_id_str is None:
         raise credentials_exception
     
-    # Query by user ID instead of username
+    # Convert string UUID to UUID object for database query
+    try:
+        user_id = uuid.UUID(user_id_str)
+    except (ValueError, TypeError):
+        raise credentials_exception
+    
+    # Query by user ID
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
