@@ -71,15 +71,24 @@ def verify_token(token: str) -> Optional[dict]:
 
 def decode_token(token: str) -> dict:
     """Decode a JWT token (with exceptions)"""
+    logger.info(f"🔍 decode_token called with token: {token[:20]}...{token[-20:] if len(token) > 40 else token}")
+    logger.info(f"🔍 Token length: {len(token)}")
+    logger.info(f"🔍 SECRET_KEY present: {bool(settings.SECRET_KEY)}")
+    logger.info(f"🔍 Algorithm: {settings.ALGORITHM}")
+    
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        logger.info(f"🔍 Token decoded successfully: {payload}")
         return payload
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
+        logger.error(f"🔍 Token expired: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired"
         )
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.error(f"🔍 Invalid token error: {str(e)}")
+        logger.error(f"🔍 JWT error type: {type(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
