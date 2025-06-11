@@ -190,14 +190,18 @@ async def get_current_user(
         logger.info("get_current_user - authentication successful")
         return user
         
-    except HTTPException:
+    except HTTPException as http_exc:
+        logger.error(f"get_current_user - HTTPException: status={http_exc.status_code}, detail={http_exc.detail}")
         raise
     except Exception as e:
         logger.error(f"get_current_user - authentication error: {str(e)}")
-        raise HTTPException(
+        logger.error(f"get_current_user - authentication error type: {type(e)}")
+        http_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token"
         )
+        logger.error(f"get_current_user - raising HTTPException: {http_exception.detail}")
+        raise http_exception
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """Get current active user"""
