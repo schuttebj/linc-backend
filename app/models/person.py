@@ -83,12 +83,12 @@ class Person(BaseModel):
     # Source: NATPER.EMAILADDR (50 chars, SCHAR4 format)
     email_address = Column(String(50), nullable=True, comment="Email address (NATPER.EMAILADDR)")
     
-    # Phone numbers - Flexible format
-    home_phone_number = Column(String(20), nullable=True, comment="Home phone number")
-    work_phone_number = Column(String(20), nullable=True, comment="Work phone number")
-    cell_phone_country_code = Column(String(5), nullable=True, comment="Cell phone country code (e.g., +27)")
+    # Phone numbers - Updated schema
+    home_phone = Column(String(20), nullable=True, comment="Home phone number")
+    work_phone = Column(String(20), nullable=True, comment="Work phone number")
+    cell_phone_country_code = Column(String(10), nullable=True, comment="Cell phone country code (e.g., +27)")
     cell_phone = Column(String(15), nullable=True, comment="Cell phone number (without country code)")
-    fax_number = Column(String(20), nullable=True, comment="Fax number")
+    fax_phone = Column(String(20), nullable=True, comment="Fax number")
     
     # Preferences and settings
     # Source: NATPER.PREFLANGCD - maps to LmPrefLang lookup
