@@ -336,6 +336,34 @@ async def init_users():
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Add test endpoint to verify API router is working
+@app.get("/api/v1/test-routing")
+async def test_api_routing():
+    """Test endpoint to verify API routing is working"""
+    return {
+        "message": "API routing is working",
+        "prefix": settings.API_V1_STR,
+        "timestamp": time.time()
+    }
+
+# Add debug endpoint to show all registered routes
+@app.get("/debug/routes")
+async def debug_routes():
+    """Debug endpoint to show all registered routes"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else [],
+                "name": getattr(route, 'name', 'unknown')
+            })
+    return {
+        "total_routes": len(routes),
+        "routes": routes,
+        "timestamp": time.time()
+    }
+
 @app.on_event("startup")
 async def startup_event():
     """Application startup event"""
