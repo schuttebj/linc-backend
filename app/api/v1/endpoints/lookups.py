@@ -20,8 +20,8 @@ class ProvinceResponse(BaseModel):
 
 class PhoneCodeResponse(BaseModel):
     """Schema for phone code lookup response"""
-    country_code: str
-    area_codes: List[str]
+    default_country_code: str
+    international_codes: Dict[str, str]  # Code -> Display name
     format_pattern: str
 
 
@@ -59,17 +59,17 @@ async def get_provinces():
 @router.get("/phone-codes", response_model=PhoneCodeResponse)
 async def get_phone_codes():
     """
-    Get phone codes and format for current country
-    Returns country code, area codes, and format pattern
+    Get international phone codes for dropdown
+    Returns default country code and international codes list
     """
     try:
-        country_code = country_config_manager.get_phone_country_code()
-        area_codes = country_config_manager.get_phone_area_codes()
+        default_country_code = country_config_manager.get_phone_country_code()
+        international_codes = country_config_manager.get_international_phone_codes()
         format_pattern = country_config_manager.config.phone_format_pattern or ""
         
         return PhoneCodeResponse(
-            country_code=country_code,
-            area_codes=area_codes,
+            default_country_code=default_country_code,
+            international_codes=international_codes,
             format_pattern=format_pattern
         )
     except Exception as e:
@@ -117,8 +117,8 @@ async def get_all_lookups():
     """
     try:
         provinces = country_config_manager.get_provinces()
-        country_code = country_config_manager.get_phone_country_code()
-        area_codes = country_config_manager.get_phone_area_codes()
+        default_country_code = country_config_manager.get_phone_country_code()
+        international_codes = country_config_manager.get_international_phone_codes()
         format_pattern = country_config_manager.config.phone_format_pattern or ""
         
         return LookupResponse(
@@ -127,8 +127,8 @@ async def get_all_lookups():
                 for code, name in provinces.items()
             ],
             phone_codes=PhoneCodeResponse(
-                country_code=country_code,
-                area_codes=area_codes,
+                default_country_code=default_country_code,
+                international_codes=international_codes,
                 format_pattern=format_pattern
             ),
             languages=country_config_manager.get_supported_languages(),
@@ -140,18 +140,19 @@ async def get_all_lookups():
 
 
 @router.post("/validate-phone")
-async def validate_phone_number(phone_number: str):
+async def validate_phone_number(country_code: str, phone_number: str):
     """
-    Validate phone number format for current country
+    Validate international phone number format
     """
     try:
-        is_valid = country_config_manager.validate_phone_number(phone_number)
-        formatted = country_config_manager.format_phone_number(phone_number)
+        is_valid = country_config_manager.validate_international_phone(country_code, phone_number)
+        formatted = country_config_manager.format_phone_number(country_code, phone_number) if is_valid else ""
         
         return {
             "is_valid": is_valid,
             "formatted": formatted,
-            "country_code": country_config_manager.get_phone_country_code()
+            "country_code": country_code,
+            "phone_number": phone_number
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error validating phone number: {str(e)}")

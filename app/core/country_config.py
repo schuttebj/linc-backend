@@ -56,7 +56,7 @@ class CountryConfig(BaseModel):
     
     # Phone Configuration
     phone_country_code: str = ""
-    phone_area_codes: List[str] = []
+    international_phone_codes: Dict[str, str] = {}  # Country code -> Display name
     phone_format_pattern: Optional[str] = None
     
     # System Parameters
@@ -148,8 +148,23 @@ COUNTRY_CONFIGURATIONS = {
         
         # Phone Configuration
         phone_country_code="+27",
-        phone_area_codes=["10", "11", "12", "13", "14", "15", "16", "17", "18", "21", "22", "23", "27", "28", "31", "32", "33", "35", "36", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "51", "53", "54", "56", "57", "58"],
-        phone_format_pattern=r"^\+27\d{9}$",
+        international_phone_codes={
+            "+27": "South Africa (+27)",
+            "+44": "United Kingdom (+44)",
+            "+1": "United States (+1)",
+            "+91": "India (+91)",
+            "+86": "China (+86)",
+            "+33": "France (+33)",
+            "+49": "Germany (+49)",
+            "+81": "Japan (+81)",
+            "+61": "Australia (+61)",
+            "+254": "Kenya (+254)",
+            "+234": "Nigeria (+234)",
+            "+263": "Zimbabwe (+263)",
+            "+260": "Zambia (+260)",
+            "+267": "Botswana (+267)"
+        },
+        phone_format_pattern=r"^\+\d{1,4}\d{4,15}$",
         
         # System Parameters
         default_language="EN",
@@ -419,9 +434,9 @@ class CountryConfigManager:
         """Get phone country code for current country"""
         return self.config.phone_country_code
     
-    def get_phone_area_codes(self) -> List[str]:
-        """Get supported phone area codes for current country"""
-        return self.config.phone_area_codes
+    def get_international_phone_codes(self) -> Dict[str, str]:
+        """Get international phone codes for dropdown"""
+        return self.config.international_phone_codes
     
     def validate_phone_number(self, phone_number: str) -> bool:
         """Validate phone number format for current country"""
@@ -430,17 +445,30 @@ class CountryConfigManager:
             return bool(re.match(self.config.phone_format_pattern, phone_number))
         return True
     
-    def format_phone_number(self, phone_number: str, area_code: str = "") -> str:
-        """Format phone number to international format"""
-        # Remove all non-digits
+    def format_phone_number(self, country_code: str, phone_number: str) -> str:
+        """Format phone number with selected country code"""
+        # Remove all non-digits from phone number
         digits_only = ''.join(filter(str.isdigit, phone_number))
         
         # Remove leading 0 if present (local format)
         if digits_only.startswith('0'):
             digits_only = digits_only[1:]
         
-        # Add country code
-        return f"{self.config.phone_country_code}{digits_only}"
+        # Combine country code with number
+        return f"{country_code}{digits_only}"
+    
+    def validate_international_phone(self, country_code: str, phone_number: str) -> bool:
+        """Validate international phone number format"""
+        if not country_code or not phone_number:
+            return False
+            
+        # Check if country code is supported
+        if country_code not in self.config.international_phone_codes:
+            return False
+            
+        # Basic number validation (4-15 digits)
+        digits_only = ''.join(filter(str.isdigit, phone_number))
+        return 4 <= len(digits_only) <= 15
 
 
 # Global country config manager instance

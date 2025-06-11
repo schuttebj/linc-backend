@@ -384,11 +384,12 @@ class PersonBase(BaseModel):
     nationality_code: str = Field(default="ZA", max_length=3, description="Nationality code (PER.NATNPOPGRPCD)")
     email_address: Optional[EmailStr] = Field(None, description="Email address (NATPER.EMAILADDR)")
     
-    # Phone numbers - International format
-    home_phone_number: Optional[str] = Field(None, max_length=20, description="Home phone number in international format (+27...)")
-    work_phone_number: Optional[str] = Field(None, max_length=20, description="Work phone number in international format (+27...)")
-    cell_phone: Optional[str] = Field(None, max_length=20, description="Cell phone number in international format (+27...)")
-    fax_number: Optional[str] = Field(None, max_length=20, description="Fax number in international format (+27...)")
+    # Phone numbers - Flexible format (international code + number OR just number)
+    home_phone_number: Optional[str] = Field(None, max_length=20, description="Home phone number")
+    work_phone_number: Optional[str] = Field(None, max_length=20, description="Work phone number") 
+    cell_phone_country_code: Optional[str] = Field(None, max_length=5, description="Cell phone country code (e.g., +27)")
+    cell_phone: Optional[str] = Field(None, max_length=15, description="Cell phone number (without country code)")
+    fax_number: Optional[str] = Field(None, max_length=20, description="Fax number")
     
     preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
     current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
@@ -429,27 +430,58 @@ class PersonBase(BaseModel):
         
         return v
 
-    @validator('home_phone_number', 'work_phone_number', 'cell_phone', 'fax_number', allow_reuse=True)
-    def validate_phone_numbers(cls, v):
+    @validator('home_phone_number', 'work_phone_number', 'fax_number', allow_reuse=True)
+    def validate_simple_phone_numbers(cls, v):
         """
-        Validate phone numbers in international format
+        Validate simple phone numbers (can be any format)
         """
         if v:
-            # Remove spaces and special characters except +
-            cleaned = ''.join(c for c in v if c.isdigit() or c == '+')
+            # Remove spaces and special characters
+            cleaned = ''.join(c for c in v if c.isdigit() or c in ['+', '-', ' ', '(', ')'])
             
-            # Must start with + and have at least 10 digits
-            if not cleaned.startswith('+'):
-                raise ValueError('Phone number must be in international format (start with +)')
+            # Check for reasonable length
+            digits_only = ''.join(filter(str.isdigit, cleaned))
+            if len(digits_only) < 4 or len(digits_only) > 20:
+                raise ValueError('Phone number must have 4-20 digits')
             
-            digits_only = cleaned[1:]  # Remove +
-            if not digits_only.isdigit():
-                raise ValueError('Phone number must contain only digits after country code')
+            return cleaned.strip()
+        
+        return v
+
+    @validator('cell_phone')
+    def validate_cell_phone_number(cls, v):
+        """
+        Validate cell phone number (without country code)
+        """
+        if v:
+            # Remove spaces and special characters except digits
+            digits_only = ''.join(filter(str.isdigit, v))
             
-            if len(digits_only) < 10 or len(digits_only) > 15:
-                raise ValueError('Phone number must have 10-15 digits after country code')
+            if len(digits_only) < 4 or len(digits_only) > 15:
+                raise ValueError('Cell phone number must have 4-15 digits')
             
-            return cleaned
+            return digits_only
+        
+        return v
+
+    @validator('cell_phone_country_code')
+    def validate_cell_phone_country_code(cls, v):
+        """
+        Validate cell phone country code
+        """
+        if v:
+            if not v.startswith('+'):
+                raise ValueError('Country code must start with +')
+            
+            # Remove + and check if remaining are digits
+            digits = v[1:]
+            if not digits.isdigit():
+                raise ValueError('Country code must contain only digits after +')
+            
+            if len(digits) < 1 or len(digits) > 4:
+                raise ValueError('Country code must have 1-4 digits')
+            
+            return v
         
         return v
 
@@ -531,7 +563,8 @@ class PersonUpdate(BaseModel):
     email_address: Optional[EmailStr] = None
     home_phone_number: Optional[str] = Field(None, max_length=20)
     work_phone_number: Optional[str] = Field(None, max_length=20)
-    cell_phone: Optional[str] = Field(None, max_length=20)
+    cell_phone_country_code: Optional[str] = Field(None, max_length=5)
+    cell_phone: Optional[str] = Field(None, max_length=15)
     fax_number: Optional[str] = Field(None, max_length=20)
     preferred_language: Optional[str] = Field(None, max_length=10)
     current_status_alias: Optional[str] = Field(None, pattern="^[123]$")
