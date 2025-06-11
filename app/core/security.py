@@ -62,8 +62,8 @@ def verify_token(token: str) -> Optional[dict]:
     """Verify and decode a JWT token"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        user_id: str = payload.get("sub")  # Token contains user_id, not username
+        if user_id is None:
             return None
         return payload
     except jwt.PyJWTError:
@@ -143,72 +143,61 @@ async def get_current_user_from_basic_auth(
     
     return user
 
-# Use the function from auth endpoints instead of placeholder
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
     db: Session = Depends(get_db)
 ):
-    """Get current user from JWT token - simplified version"""
+    """
+    Get current user from JWT token - SECURE STANDARDIZED VERSION
+    Uses the same logic as auth endpoints for consistency
+    """
     from app.models.user import User, UserStatus
     
     logger.info("get_current_user starting...")
     
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    
     try:
-        logger.info("get_current_user - verifying token...")
-        payload = verify_token(credentials.credentials)
-        if payload is None:
-            logger.error("get_current_user - token verification failed")
-            raise credentials_exception
+        # Decode token (same as auth endpoints)
+        payload = decode_token(credentials.credentials)
+        user_id = payload.get("sub")
+        username = payload.get("username")
         
-        logger.info(f"get_current_user - token verified, payload: {payload}")
-    
-        # Get user ID from token payload (sub field contains user ID, not username)
-        user_id_str = payload.get("sub")
-        if user_id_str is None:
-            logger.error("get_current_user - no user ID in token")
-            raise credentials_exception
+        if not user_id or not username:
+            logger.error("get_current_user - invalid token payload")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
         
-        logger.info(f"get_current_user - extracted user_id: {user_id_str}")
-    
-        # Convert string UUID to UUID object for database query
-        try:
-            user_id = uuid.UUID(user_id_str)
-            logger.info(f"get_current_user - converted to UUID: {user_id}")
-        except (ValueError, TypeError) as e:
-            logger.error(f"get_current_user - UUID conversion failed: {e}")
-            raise credentials_exception
-    
-        # Query by user ID
-        logger.info("get_current_user - querying database for user...")
-        user = db.query(User).filter(User.id == user_id).first()
-        logger.info(f"get_current_user - database query result: {user}")
+        logger.info(f"get_current_user - token verified for user: {username}, id: {user_id}")
         
-        if user is None:
+        # Get user from database by ID (more secure than username)
+        user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
+        
+        if not user:
             logger.error("get_current_user - user not found in database")
-            raise credentials_exception
-    
-        logger.info(f"get_current_user - checking user status: {user.status}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
         if user.status != UserStatus.ACTIVE.value:
-            logger.error(f"get_current_user - user status inactive: {user.status}")
+            logger.error(f"get_current_user - user account inactive: {user.status}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is inactive"
             )
-    
+        
         logger.info("get_current_user - authentication successful")
         return user
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"get_current_user - unexpected error: {str(e)}")
-        raise credentials_exception
+        logger.error(f"get_current_user - authentication error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token"
+        )
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """Get current active user"""

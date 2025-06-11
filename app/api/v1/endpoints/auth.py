@@ -16,6 +16,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 import uuid
 import logging
+import structlog
 
 # Internal imports
 from app.core.database import get_db
@@ -25,7 +26,8 @@ from app.core.security import (
     create_access_token, 
     create_refresh_token,
     verify_token,
-    decode_token
+    decode_token,
+    get_current_user  # Import standardized auth function
 )
 from app.core.config import get_settings
 from app.models.user import User, UserStatus
@@ -42,7 +44,7 @@ from app.schemas.auth import (
 # Router setup
 router = APIRouter()
 security = HTTPBearer()
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 settings = get_settings()
 
 # Constants
@@ -268,15 +270,13 @@ async def refresh_token(
 async def logout(
     request: Request,
     response: Response,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Logout endpoint - invalidates tokens and clears cookies
     """
     try:
-        # Get user from access token
-        user = await get_current_user(credentials, db)
+        # User is already authenticated via dependency
         
         # Clear refresh token cookie
         response.delete_cookie(
@@ -287,7 +287,7 @@ async def logout(
         )
         
         # Log logout event
-        logger.info(f"Logout successful: {user.username}, IP: {request.client.host}")
+        logger.info(f"Logout successful: {current_user.username}, IP: {request.client.host}")
         
         return {"message": "Successfully logged out"}
         
@@ -305,36 +305,35 @@ async def logout(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get current user information
     """
     try:
-        user = await get_current_user(credentials, db)
+        # User is already authenticated and loaded via dependency
         
         # Get user permissions and roles
         permissions = []
         roles = []
         
-        for role in user.roles:
+        for role in current_user.roles:
             roles.append(role.name)
             for permission in role.permissions:
                 if permission.name not in permissions:
                     permissions.append(permission.name)
         
         return UserResponse(
-            id=str(user.id),
-            username=user.username,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            is_active=user.status == UserStatus.ACTIVE.value,
-            is_superuser=user.is_superuser,
+            id=str(current_user.id),
+            username=current_user.username,
+            email=current_user.email,
+            first_name=current_user.first_name,
+            last_name=current_user.last_name,
+            is_active=current_user.status == UserStatus.ACTIVE.value,
+            is_superuser=current_user.is_superuser,
             roles=roles,
             permissions=permissions,
-            last_login_at=user.last_login_at
+            last_login_at=current_user.last_login_at
         )
         
     except Exception as e:
@@ -348,31 +347,31 @@ async def get_current_user_info(
 @router.post("/change-password")
 async def change_password(
     password_data: ChangePasswordRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Change user password
     """
     try:
-        user = await get_current_user(credentials, db)
+        # User is already authenticated via dependency
         
         # Verify current password
-        if not verify_password(password_data.current_password, user.password_hash):
+        if not verify_password(password_data.current_password, current_user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Current password is incorrect"
             )
         
         # Update password
-        user.password_hash = get_password_hash(password_data.new_password)
-        user.password_changed_at = datetime.utcnow()
-        user.updated_at = datetime.utcnow()
+        current_user.password_hash = get_password_hash(password_data.new_password)
+        current_user.password_changed_at = datetime.utcnow()
+        current_user.updated_at = datetime.utcnow()
         
         db.commit()
         
         # Log password change
-        logger.info(f"Password changed for user: {user.username}")
+        logger.info(f"Password changed for user: {current_user.username}")
         
         return {"message": "Password changed successfully"}
         
@@ -405,48 +404,4 @@ async def test_auth_endpoint():
     }
 
 
-# Helper function to get current user from token
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials,
-    db: Session
-) -> User:
-    """
-    Get current user from JWT token
-    """
-    try:
-        # Decode token
-        payload = decode_token(credentials.credentials)
-        user_id = payload.get("sub")
-        username = payload.get("username")
-        
-        if not user_id or not username:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token"
-            )
-        
-        # Get user from database
-        user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
-        
-        if user.status != UserStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User account is inactive"
-            )
-        
-        return user
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Get current user from token error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
-        ) 
+# Note: get_current_user is now imported from app.core.security for consistency 
