@@ -36,9 +36,23 @@ class PersonService:
     """
 
     def __init__(self, db: Session):
+        logger.info("PersonService.__init__ starting...")
         self.db = db
-        self.validation_service = PersonValidationService(db)
-        self.validation_orchestrator = ValidationOrchestrator(self.validation_service)
+        logger.info("PersonService.__init__ - db session assigned")
+        
+        try:
+            # Temporarily remove validation service to resolve auth issues
+            logger.info("PersonService.__init__ - creating PersonValidationService...")
+            self.validation_service = PersonValidationService(db)
+            logger.info("PersonService.__init__ - PersonValidationService created successfully")
+            
+            logger.info("PersonService.__init__ - creating ValidationOrchestrator...")
+            self.validation_orchestrator = ValidationOrchestrator(self.validation_service)
+            logger.info("PersonService.__init__ - ValidationOrchestrator created successfully")
+            
+        except Exception as e:
+            logger.error(f"PersonService.__init__ failed: {str(e)}")
+            raise
 
     # ============================================================================
     # CORE PERSON CRUD OPERATIONS - ENHANCED WITH ORCHESTRATOR
