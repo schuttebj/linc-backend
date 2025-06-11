@@ -30,37 +30,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ============================================================================
-# DEBUG ENDPOINT - Token Inspection (REMOVE AFTER DEBUGGING)
-# ============================================================================
-
-@router.get("/debug/token-test")
-async def debug_token_test(request: Request):
-    """
-    DEBUG ENDPOINT: Inspect raw Authorization header
-    This will help us compare tokens between auth and person endpoints
-    """
-    headers = dict(request.headers)
-    auth_header = headers.get("authorization", "NOT_FOUND")
-    
-    logger.error(f"🔍 DEBUG TOKEN TEST - Raw headers: {headers}")
-    logger.error(f"🔍 DEBUG TOKEN TEST - Authorization header: {auth_header}")
-    
-    if auth_header and auth_header != "NOT_FOUND":
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]  # Remove "Bearer " prefix
-            logger.error(f"🔍 DEBUG TOKEN TEST - Token: {token[:20]}...{token[-20:] if len(token) > 40 else token}")
-            logger.error(f"🔍 DEBUG TOKEN TEST - Token length: {len(token)}")
-            logger.error(f"🔍 DEBUG TOKEN TEST - Token segments: {token.count('.')}")
-        else:
-            logger.error(f"🔍 DEBUG TOKEN TEST - Not Bearer format: {auth_header}")
-    
-    return {
-        "message": "Token debug completed - check logs",
-        "authorization_header": auth_header,
-        "all_headers": headers
-    }
-
-# ============================================================================
 # CORE PERSON ENDPOINTS - CORRECTED
 # ============================================================================
 

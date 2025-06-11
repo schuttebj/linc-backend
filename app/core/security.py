@@ -71,24 +71,15 @@ def verify_token(token: str) -> Optional[dict]:
 
 def decode_token(token: str) -> dict:
     """Decode a JWT token (with exceptions)"""
-    logger.info(f"🔍 decode_token called with token: {token[:20]}...{token[-20:] if len(token) > 40 else token}")
-    logger.info(f"🔍 Token length: {len(token)}")
-    logger.info(f"🔍 SECRET_KEY present: {bool(settings.SECRET_KEY)}")
-    logger.info(f"🔍 Algorithm: {settings.ALGORITHM}")
-    
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        logger.info(f"🔍 Token decoded successfully: {payload}")
         return payload
-    except jwt.ExpiredSignatureError as e:
-        logger.error(f"🔍 Token expired: {str(e)}")
+    except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired"
         )
-    except jwt.InvalidTokenError as e:
-        logger.error(f"🔍 Invalid token error: {str(e)}")
-        logger.error(f"🔍 JWT error type: {type(e)}")
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
@@ -162,27 +153,9 @@ async def get_current_user(
     """
     from app.models.user import User, UserStatus
     
-    logger.info("🚨 get_current_user starting...")
-    logger.info(f"🚨 Credentials object: {credentials}")
-    logger.info(f"🚨 Credentials type: {type(credentials)}")
-    
-    if credentials:
-        logger.info(f"🚨 Credentials.scheme: {credentials.scheme}")
-        logger.info(f"🚨 Credentials.credentials: {credentials.credentials}")
-        logger.info(f"🔑 Raw token received: {credentials.credentials[:20]}...{credentials.credentials[-20:] if len(credentials.credentials) > 40 else credentials.credentials}")
-        logger.info(f"🔑 Token length: {len(credentials.credentials)}")
-    else:
-        logger.error("🚨 No credentials received!")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authorization credentials provided"
-        )
-
     try:
         # Decode token (same as auth endpoints)
-        logger.info("🔑 About to decode token...")
         payload = decode_token(credentials.credentials)
-        logger.info(f"🔑 Token decoded successfully: {payload}")
         
         user_id = payload.get("sub")
         username = payload.get("username")
@@ -193,8 +166,6 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication token"
             )
-        
-        logger.info(f"get_current_user - token verified for user: {username}, id: {user_id}")
         
         # Get user from database by ID (more secure than username)
         user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
@@ -213,21 +184,16 @@ async def get_current_user(
                 detail="User account is inactive"
             )
         
-        logger.info("get_current_user - authentication successful")
         return user
         
-    except HTTPException as http_exc:
-        logger.error(f"get_current_user - HTTPException: status={http_exc.status_code}, detail={http_exc.detail}")
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"get_current_user - authentication error: {str(e)}")
-        logger.error(f"get_current_user - authentication error type: {type(e)}")
-        http_exception = HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token"
         )
-        logger.error(f"get_current_user - raising HTTPException: {http_exception.detail}")
-        raise http_exception
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """Get current active user"""
