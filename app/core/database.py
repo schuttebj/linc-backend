@@ -48,16 +48,31 @@ def get_database_session() -> Generator[Session, None, None]:
     Yields:
         Database session
     """
-    db = SessionLocal()
+    logger.info("🔧 Creating database session...")
     
     try:
+        db = SessionLocal()
+        logger.info("🔧 Database session created successfully")
         yield db
+        logger.info("🔧 Database session completed successfully")
     except Exception as e:
         logger.error(f"Database session error: {e}")
-        db.rollback()
+        logger.error(f"Database session error type: {type(e)}")
+        logger.error(f"Database session error details: {str(e)}")
+        
+        try:
+            db.rollback()
+            logger.info("🔧 Database session rolled back")
+        except Exception as rollback_error:
+            logger.error(f"Database rollback error: {rollback_error}")
+        
         raise
     finally:
-        db.close()
+        try:
+            db.close()
+            logger.info("🔧 Database session closed")
+        except Exception as close_error:
+            logger.error(f"Database close error: {close_error}")
 
 
 @contextmanager
