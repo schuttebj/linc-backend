@@ -15,7 +15,7 @@ services:
           name: linc-database
           property: connectionString
       - key: ALLOWED_ORIGINS
-        value: '["https://linc-frontend.vercel.app"]'
+        value: 'https://linc-frontend-opal.vercel.app'
       - key: FILE_STORAGE_BASE_PATH
         value: /tmp/linc-data
       - key: COUNTRY_CODE
