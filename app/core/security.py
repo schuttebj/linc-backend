@@ -11,6 +11,7 @@ from fastapi.security import HTTPBearer, HTTPBasic, HTTPBasicCredentials, HTTPAu
 from sqlalchemy.orm import Session
 import secrets
 import uuid
+import logging
 
 from app.core.config import get_settings
 from app.core.database import get_db
@@ -22,6 +23,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security_bearer = HTTPBearer()
 security_basic = HTTPBasic()
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
@@ -148,39 +151,64 @@ async def get_current_user(
     """Get current user from JWT token - simplified version"""
     from app.models.user import User, UserStatus
     
+    logger.info("get_current_user starting...")
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    payload = verify_token(credentials.credentials)
-    if payload is None:
-        raise credentials_exception
-    
-    # Get user ID from token payload (sub field contains user ID, not username)
-    user_id_str = payload.get("sub")
-    if user_id_str is None:
-        raise credentials_exception
-    
-    # Convert string UUID to UUID object for database query
     try:
-        user_id = uuid.UUID(user_id_str)
-    except (ValueError, TypeError):
+        logger.info("get_current_user - verifying token...")
+        payload = verify_token(credentials.credentials)
+        if payload is None:
+            logger.error("get_current_user - token verification failed")
+            raise credentials_exception
+        
+        logger.info(f"get_current_user - token verified, payload: {payload}")
+    
+        # Get user ID from token payload (sub field contains user ID, not username)
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
+            logger.error("get_current_user - no user ID in token")
+            raise credentials_exception
+        
+        logger.info(f"get_current_user - extracted user_id: {user_id_str}")
+    
+        # Convert string UUID to UUID object for database query
+        try:
+            user_id = uuid.UUID(user_id_str)
+            logger.info(f"get_current_user - converted to UUID: {user_id}")
+        except (ValueError, TypeError) as e:
+            logger.error(f"get_current_user - UUID conversion failed: {e}")
+            raise credentials_exception
+    
+        # Query by user ID
+        logger.info("get_current_user - querying database for user...")
+        user = db.query(User).filter(User.id == user_id).first()
+        logger.info(f"get_current_user - database query result: {user}")
+        
+        if user is None:
+            logger.error("get_current_user - user not found in database")
+            raise credentials_exception
+    
+        logger.info(f"get_current_user - checking user status: {user.status}")
+        if user.status != UserStatus.ACTIVE.value:
+            logger.error(f"get_current_user - user status inactive: {user.status}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account is inactive"
+            )
+    
+        logger.info("get_current_user - authentication successful")
+        return user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_current_user - unexpected error: {str(e)}")
         raise credentials_exception
-    
-    # Query by user ID
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-    
-    if user.status != UserStatus.ACTIVE.value:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is inactive"
-        )
-    
-    return user
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """Get current active user"""
