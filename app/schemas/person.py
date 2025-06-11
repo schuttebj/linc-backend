@@ -384,12 +384,12 @@ class PersonBase(BaseModel):
     nationality_code: str = Field(default="ZA", max_length=3, description="Nationality code (PER.NATNPOPGRPCD)")
     email_address: Optional[EmailStr] = Field(None, description="Email address (NATPER.EMAILADDR)")
     
-    # Phone numbers - Flexible format (international code + number OR just number)
-    home_phone_number: Optional[str] = Field(None, max_length=20, description="Home phone number")
-    work_phone_number: Optional[str] = Field(None, max_length=20, description="Work phone number") 
-    cell_phone_country_code: Optional[str] = Field(None, max_length=5, description="Cell phone country code (e.g., +27)")
+    # Phone numbers - Updated to match database model
+    home_phone: Optional[str] = Field(None, max_length=20, description="Home phone number")
+    work_phone: Optional[str] = Field(None, max_length=20, description="Work phone number") 
+    cell_phone_country_code: Optional[str] = Field(None, max_length=10, description="Cell phone country code (e.g., +27)")
     cell_phone: Optional[str] = Field(None, max_length=15, description="Cell phone number (without country code)")
-    fax_number: Optional[str] = Field(None, max_length=20, description="Fax number")
+    fax_phone: Optional[str] = Field(None, max_length=20, description="Fax number")
     
     preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
     current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
@@ -430,7 +430,7 @@ class PersonBase(BaseModel):
         
         return v
 
-    @validator('home_phone_number', 'work_phone_number', 'fax_number', allow_reuse=True)
+    @validator('home_phone', 'work_phone', 'fax_phone', allow_reuse=True)
     def validate_simple_phone_numbers(cls, v):
         """
         Validate simple phone numbers (can be any format)
@@ -561,11 +561,11 @@ class PersonUpdate(BaseModel):
     initials: Optional[str] = Field(None, max_length=3, pattern="^[A-Z]*$")
     nationality_code: Optional[str] = Field(None, max_length=3)
     email_address: Optional[EmailStr] = None
-    home_phone_number: Optional[str] = Field(None, max_length=20)
-    work_phone_number: Optional[str] = Field(None, max_length=20)
-    cell_phone_country_code: Optional[str] = Field(None, max_length=5)
+    home_phone: Optional[str] = Field(None, max_length=20)
+    work_phone: Optional[str] = Field(None, max_length=20)
+    cell_phone_country_code: Optional[str] = Field(None, max_length=10)
     cell_phone: Optional[str] = Field(None, max_length=15)
-    fax_number: Optional[str] = Field(None, max_length=20)
+    fax_phone: Optional[str] = Field(None, max_length=20)
     preferred_language: Optional[str] = Field(None, max_length=10)
     current_status_alias: Optional[str] = Field(None, pattern="^[123]$")
     is_active: Optional[bool] = None
