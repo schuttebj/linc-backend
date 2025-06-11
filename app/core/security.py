@@ -86,7 +86,7 @@ async def get_current_user_from_token(
     db: Session = Depends(get_db)
 ):
     """Get current user from JWT token"""
-    from app.models.user import User
+    from app.models.user import User, UserStatus
     
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -106,7 +106,7 @@ async def get_current_user_from_token(
     if user is None:
         raise credentials_exception
     
-    if not user.is_active:
+    if user.status != UserStatus.ACTIVE.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
@@ -119,7 +119,7 @@ async def get_current_user_from_basic_auth(
     db: Session = Depends(get_db)
 ):
     """Get current user from HTTP Basic Auth"""
-    from app.models.user import User
+    from app.models.user import User, UserStatus
     
     # Authenticate user with username/password
     user = db.query(User).filter(User.username == credentials.username).first()
@@ -131,7 +131,7 @@ async def get_current_user_from_basic_auth(
             headers={"WWW-Authenticate": "Basic"},
         )
     
-    if not user.is_active:
+    if user.status != UserStatus.ACTIVE.value:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
@@ -139,91 +139,46 @@ async def get_current_user_from_basic_auth(
     
     return user
 
+# Use the function from auth endpoints instead of placeholder
 async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_bearer),
     db: Session = Depends(get_db)
 ):
-    """
-    Get current user supporting both JWT Bearer tokens and HTTP Basic Auth
-    This function will be used with custom dependency logic
-    """
-    from fastapi import Request
-    from app.models.user import User
+    """Get current user from JWT token - simplified version"""
+    from app.models.user import User, UserStatus
     
-    # This is a placeholder - the actual authentication logic 
-    # will be handled by the dependency injection system
-    pass
-
-# Custom dependency for dual authentication
-class DualAuth:
-    """
-    Custom authentication class supporting both JWT and Basic Auth
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     
-    ⚠️  SECURITY WARNING ⚠️
-    HTTP Basic Auth is included for TESTING CONVENIENCE only!
+    payload = verify_token(credentials.credentials)
+    if payload is None:
+        raise credentials_exception
     
-    TODO: REMOVE HTTP Basic Auth before PRODUCTION deployment:
-    1. Remove basic_auth parameter from __call__ method
-    2. Remove HTTPBasic import and security_basic instance
-    3. Remove the "Try HTTP Basic Auth" section below
-    4. Update OpenAPI config to only show Bearer token
+    # Get user ID from token payload (sub field contains user ID, not username)
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise credentials_exception
     
-    Basic Auth sends credentials with every request and is less secure than JWT tokens.
-    """
+    # Query by user ID instead of username
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise credentials_exception
     
-    def __init__(self):
-        self.security_bearer = HTTPBearer(auto_error=False)
-        self.security_basic = HTTPBasic(auto_error=False)  # TODO: Remove before production!
-    
-    async def __call__(
-        self,
-        db: Session = Depends(get_db),
-        bearer_token: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-        basic_auth: Optional[HTTPBasicCredentials] = Depends(HTTPBasic(auto_error=False))  # TODO: Remove before production!
-    ):
-        """
-        Try both authentication methods
-        
-        ⚠️  PRODUCTION TODO: Remove basic_auth parameter and related logic below
-        """
-        from app.models.user import User
-        
-        # Try JWT Bearer token first
-        if bearer_token:
-            try:
-                payload = verify_token(bearer_token.credentials)
-                if payload:
-                    username = payload.get("sub")
-                    if username:
-                        user = db.query(User).filter(User.username == username).first()
-                        if user and user.is_active:
-                            return user
-            except:
-                pass
-        
-        # Try HTTP Basic Auth
-        # TODO: REMOVE THIS ENTIRE SECTION BEFORE PRODUCTION! ⚠️
-        if basic_auth:
-            try:
-                user = db.query(User).filter(User.username == basic_auth.username).first()
-                if user and verify_password(basic_auth.password, user.password_hash) and user.is_active:
-                    return user
-            except:
-                pass
-        # END OF SECTION TO REMOVE ⚠️
-        
-        # If neither method worked, raise authentication error
+    if user.status != UserStatus.ACTIVE.value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="User account is inactive"
         )
-
-# Create the dependency instance
-get_current_user = DualAuth()
+    
+    return user
 
 async def get_current_active_user(current_user = Depends(get_current_user)):
     """Get current active user"""
-    if not current_user.is_active:
+    from app.models.user import UserStatus
+    if current_user.status != UserStatus.ACTIVE.value:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
