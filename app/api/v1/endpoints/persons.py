@@ -570,12 +570,7 @@ async def get_id_document_types():
     - 01: TRN (Traffic Register Number)
     - 02: RSA ID (South African ID Document) 
     - 03: Foreign ID Document
-    - 04: BRN (Business Registration Number)
     - 05: Passport Number
-    - 06: Birth Certificate
-    - 07: Marriage Certificate
-    - 08: Death Certificate
-    - 13: Passport (Legacy)
     
     Useful for form dropdowns and validation.
     """
@@ -583,12 +578,7 @@ async def get_id_document_types():
         "01": "Traffic Register Number (13 digits numeric)",
         "02": "RSA ID Document (13 digits numeric)",
         "03": "Foreign ID Document (alphanumeric)",
-        "04": "Business Registration Number (13 digits numeric)",
-        "05": "Passport Number (6-12 alphanumeric)",
-        "06": "Birth Certificate (8-20 alphanumeric)",
-        "07": "Marriage Certificate (8-20 alphanumeric)",
-        "08": "Death Certificate (8-20 alphanumeric)",
-        "13": "Passport Legacy (6-12 alphanumeric)"
+        "05": "Passport Number (6-12 alphanumeric)"
     }
     
     return [
@@ -596,8 +586,8 @@ async def get_id_document_types():
             "code": doc_type.value, 
             "name": doc_type.name.replace('_', ' ').title(),
             "description": descriptions.get(doc_type.value, doc_type.name),
-            "requires_expiry": doc_type.value in ["03", "05", "13"],
-            "format": "numeric" if doc_type.value in ["01", "02", "04"] else "alphanumeric"
+            "requires_expiry": doc_type.value in ["03", "05"],
+            "format": "numeric" if doc_type.value in ["01", "02"] else "alphanumeric"
         }
         for doc_type in IdentificationType
     ]
