@@ -567,16 +567,38 @@ async def get_id_document_types():
     Get available ID document types for Transaction 57 - Introduction of Natural Person.
     
     TRANSACTION 57: Returns valid ID types per V00012:
-    - 02: RSA ID (South African ID Document)
+    - 01: TRN (Traffic Register Number)
+    - 02: RSA ID (South African ID Document) 
     - 03: Foreign ID Document
+    - 04: BRN (Business Registration Number)
+    - 05: Passport Number
+    - 06: Birth Certificate
+    - 07: Marriage Certificate
+    - 08: Death Certificate
+    - 13: Passport (Legacy)
     
     Useful for form dropdowns and validation.
     """
+    descriptions = {
+        "01": "Traffic Register Number (13 digits numeric)",
+        "02": "RSA ID Document (13 digits numeric)",
+        "03": "Foreign ID Document (alphanumeric)",
+        "04": "Business Registration Number (13 digits numeric)",
+        "05": "Passport Number (6-12 alphanumeric)",
+        "06": "Birth Certificate (8-20 alphanumeric)",
+        "07": "Marriage Certificate (8-20 alphanumeric)",
+        "08": "Death Certificate (8-20 alphanumeric)",
+        "13": "Passport Legacy (6-12 alphanumeric)"
+    }
+    
     return [
-        {"code": doc_type.value, "name": doc_type.name, "description": {
-            "02": "RSA ID Document (13 digits numeric)",
-            "03": "Foreign ID Document"
-        }.get(doc_type.value, doc_type.name)}
+        {
+            "code": doc_type.value, 
+            "name": doc_type.name.replace('_', ' ').title(),
+            "description": descriptions.get(doc_type.value, doc_type.name),
+            "requires_expiry": doc_type.value in ["03", "05", "13"],
+            "format": "numeric" if doc_type.value in ["01", "02", "04"] else "alphanumeric"
+        }
         for doc_type in IdentificationType
     ]
 

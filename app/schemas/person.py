@@ -23,9 +23,22 @@ class IdentificationType(str, Enum):
     TRANSACTION 57 - Introduction of Natural Person
     V00012: Only RSA ID (02) and Foreign ID (03) allowed for person introduction
     Based on eNaTIS documentation requirements
+    
+    Extended to support additional civil registration documents:
+    - 05: Passport Number
+    - 06: Birth Certificate 
+    - 07: Marriage Certificate
+    - 08: Death Certificate
     """
+    TRN = "01"              # Traffic Register Number - V00019 check digit validation
     RSA_ID = "02"           # RSA ID Document (13 digits numeric) - V00017, V00018, V00019
     FOREIGN_ID = "03"       # Foreign ID Document - V00013
+    BRN = "04"              # Business Registration Number - V00019 check digit validation
+    PASSPORT = "05"         # Passport Number - requires expiry date validation
+    BIRTH_CERT = "06"       # Birth Certificate - requires date validation
+    MARRIAGE_CERT = "07"    # Marriage Certificate - requires date validation
+    DEATH_CERT = "08"       # Death Certificate - requires date validation
+    PASSPORT_LEGACY = "13"  # Legacy Passport code - for backward compatibility
 
 
 class PersonNature(str, Enum):
@@ -81,6 +94,7 @@ class PersonAliasBase(BaseModel):
     def validate_id_number(cls, v, values):
         """
         Implements validation codes V00013, V00017, V00018, V00019
+        Extended for new document types: TRN, BRN, Passport, Birth/Marriage/Death Certificates
         """
         doc_type = values.get('id_document_type_code')
         
@@ -88,24 +102,61 @@ class PersonAliasBase(BaseModel):
         if not v or v.strip() == "":
             raise ValueError('Identification number is mandatory (V00013)')
         
-        # V00018: 13 chars for RSA ID (02)
-        if doc_type == IdentificationType.RSA_ID and len(v) != 13:
-            raise ValueError(f'This type requires 13 characters (V00018)')
-        
-        # V00017: Numeric for type 02 (RSA ID)
-        if doc_type == IdentificationType.RSA_ID:
+        # V00018 & V00017: 13 chars and numeric for TRN (01), RSA ID (02), BRN (04)
+        if doc_type in [IdentificationType.TRN, IdentificationType.RSA_ID, IdentificationType.BRN]:
+            if len(v) != 13:
+                raise ValueError(f'This type requires 13 characters (V00018)')
             if not v.isdigit():
-                raise ValueError('RSA ID number must be numeric only (V00017)')
+                raise ValueError('This document type must be numeric only (V00017)')
             
-            # V00019: Basic check digit validation for RSA ID
-            if len(v) == 13:
+            # V00019: Check digit validation for TRN, RSA ID, BRN
+            if doc_type == IdentificationType.RSA_ID:
                 if not cls._validate_rsa_id_checksum(v):
                     raise ValueError('Invalid RSA ID check digit (V00019)')
+            elif doc_type == IdentificationType.TRN:
+                if not cls._validate_trn_checksum(v):
+                    raise ValueError('Invalid TRN check digit (V00019)')
+            elif doc_type == IdentificationType.BRN:
+                if not cls._validate_brn_checksum(v):
+                    raise ValueError('Invalid BRN check digit (V00019)')
+        
+        # Passport validation (05 and 13)
+        elif doc_type in [IdentificationType.PASSPORT, IdentificationType.PASSPORT_LEGACY]:
+            if len(v) < 6 or len(v) > 12:
+                raise ValueError('Passport number must be between 6 and 12 characters')
+            # Passport numbers can be alphanumeric
+            if not v.replace(' ', '').isalnum():
+                raise ValueError('Passport number must contain only letters and numbers')
+        
+        # Birth Certificate validation (06)
+        elif doc_type == IdentificationType.BIRTH_CERT:
+            if len(v) < 8 or len(v) > 20:
+                raise ValueError('Birth certificate number must be between 8 and 20 characters')
+            # Birth certificates can be alphanumeric
+            if not v.replace(' ', '').replace('/', '').replace('-', '').isalnum():
+                raise ValueError('Birth certificate number contains invalid characters')
+        
+        # Marriage Certificate validation (07)
+        elif doc_type == IdentificationType.MARRIAGE_CERT:
+            if len(v) < 8 or len(v) > 20:
+                raise ValueError('Marriage certificate number must be between 8 and 20 characters')
+            # Marriage certificates can be alphanumeric
+            if not v.replace(' ', '').replace('/', '').replace('-', '').isalnum():
+                raise ValueError('Marriage certificate number contains invalid characters')
+        
+        # Death Certificate validation (08)
+        elif doc_type == IdentificationType.DEATH_CERT:
+            if len(v) < 8 or len(v) > 20:
+                raise ValueError('Death certificate number must be between 8 and 20 characters')
+            # Death certificates can be alphanumeric
+            if not v.replace(' ', '').replace('/', '').replace('-', '').isalnum():
+                raise ValueError('Death certificate number contains invalid characters')
         
         # V00019: Foreign ID validation
         elif doc_type == IdentificationType.FOREIGN_ID:
-            # Foreign ID format validation can be added here if needed
-            pass
+            # Foreign ID format validation - minimum length check
+            if len(v) < 4:
+                raise ValueError('Foreign ID must be at least 4 characters')
         
         return v
 
@@ -127,19 +178,28 @@ class PersonAliasBase(BaseModel):
     def validate_expiry_date(cls, v, values):
         """
         Validate ID document expiry date
-        V00039: Must be future date for foreign documents
+        V00039: Must be future date for foreign documents and passports
+        Extended for new document types
         """
         doc_type = values.get('id_document_type_code')
         
-        # Require expiry date for foreign documents
-        if doc_type == IdentificationType.FOREIGN_ID:
+        # Require expiry date for foreign documents and passports
+        if doc_type in [IdentificationType.FOREIGN_ID, IdentificationType.PASSPORT, IdentificationType.PASSPORT_LEGACY]:
             if not v:
-                raise ValueError('Expiry date is required for foreign documents')
+                doc_name = "foreign document" if doc_type == IdentificationType.FOREIGN_ID else "passport"
+                raise ValueError(f'Expiry date is required for {doc_name}')
             if v <= date.today():
                 raise ValueError('Expiry date must be in the future')
         
+        # Birth, Marriage, Death certificates should not have expiry dates
+        elif doc_type in [IdentificationType.BIRTH_CERT, IdentificationType.MARRIAGE_CERT, IdentificationType.DEATH_CERT]:
+            if v:
+                cert_type = "birth" if doc_type == IdentificationType.BIRTH_CERT else \
+                           "marriage" if doc_type == IdentificationType.MARRIAGE_CERT else "death"
+                raise ValueError(f'{cert_type.title()} certificates do not have expiry dates')
+        
         # Optional validation for other document types
-        if v and v <= date.today():
+        elif v and v <= date.today():
             raise ValueError('Expiry date must be in the future')
         
         return v
@@ -150,6 +210,46 @@ class PersonAliasBase(BaseModel):
         try:
             digits = [int(d) for d in id_number[:12]]
             check_digit = int(id_number[12])
+            
+            total = 0
+            for i, digit in enumerate(digits):
+                if i % 2 == 1:
+                    doubled = digit * 2
+                    total += doubled if doubled < 10 else doubled - 9
+                else:
+                    total += digit
+            
+            calculated_check = (10 - (total % 10)) % 10
+            return calculated_check == check_digit
+        except (ValueError, IndexError):
+            return False
+    
+    @staticmethod
+    def _validate_trn_checksum(trn_number: str) -> bool:
+        """TRN checksum validation - similar to RSA ID"""
+        try:
+            digits = [int(d) for d in trn_number[:12]]
+            check_digit = int(trn_number[12])
+            
+            total = 0
+            for i, digit in enumerate(digits):
+                if i % 2 == 1:
+                    doubled = digit * 2
+                    total += doubled if doubled < 10 else doubled - 9
+                else:
+                    total += digit
+            
+            calculated_check = (10 - (total % 10)) % 10
+            return calculated_check == check_digit
+        except (ValueError, IndexError):
+            return False
+    
+    @staticmethod
+    def _validate_brn_checksum(brn_number: str) -> bool:
+        """BRN checksum validation - similar to RSA ID"""
+        try:
+            digits = [int(d) for d in brn_number[:12]]
+            check_digit = int(brn_number[12])
             
             total = 0
             for i, digit in enumerate(digits):
