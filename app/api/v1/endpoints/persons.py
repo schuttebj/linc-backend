@@ -63,6 +63,55 @@ async def create_person(
     return service.create_person(person_data, created_by=current_user.username)
 
 
+@router.get("/search", response_model=PersonResponse)
+async def search_person_by_id(
+    id_type: str = Query(..., description="ID document type (01, 02, 03, 05)"),
+    id_number: str = Query(..., description="ID document number"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Search for a person by ID type and number - returns full person record.
+    
+    This endpoint is used for editing functionality when a person is found.
+    Unlike the POST /search endpoint that returns search results,
+    this returns the complete person record including all related data.
+    
+    ID Document Types:
+    - 01: TRN (Traffic Register Number)
+    - 02: RSA ID (South African ID Document)
+    - 03: Foreign ID (Foreign ID Document)
+    - 05: Passport Number
+    
+    Returns complete PersonResponse with all related data for editing.
+    
+    Requires 'person:read' permission.
+    """
+    logger.info(f"🔍 GET /search called with id_type={id_type}, id_number={id_number}")
+    
+    # Create search request to find the person
+    search_request = PersonSearchRequest(
+        id_number=id_number,
+        limit=1
+    )
+    
+    service = PersonService(db)
+    result = service.search_persons(search_request)
+    
+    if not result.persons:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Person not found with {id_type}: {id_number}"
+        )
+    
+    # Get the full person record
+    person_summary = result.persons[0]
+    full_person = service.get_person(person_summary.id)
+    
+    logger.info(f"✅ Found person: {full_person.business_or_surname} (ID: {person_summary.id})")
+    return full_person
+
+
 @router.get("/{person_id}", response_model=PersonResponse)
 async def get_person(
     person_id: str,
@@ -129,55 +178,6 @@ async def delete_person(
 # ============================================================================
 # SEARCH AND LISTING ENDPOINTS - CORRECTED for person_nature
 # ============================================================================
-
-@router.get("/search", response_model=PersonResponse)
-async def search_person_by_id(
-    id_type: str = Query(..., description="ID document type (01, 02, 03, 05)"),
-    id_number: str = Query(..., description="ID document number"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Search for a person by ID type and number - returns full person record.
-    
-    This endpoint is used for editing functionality when a person is found.
-    Unlike the POST /search endpoint that returns search results,
-    this returns the complete person record including all related data.
-    
-    ID Document Types:
-    - 01: TRN (Traffic Register Number)
-    - 02: RSA ID (South African ID Document)
-    - 03: Foreign ID (Foreign ID Document)
-    - 05: Passport Number
-    
-    Returns complete PersonResponse with all related data for editing.
-    
-    Requires 'person:read' permission.
-    """
-    logger.info(f"🔍 GET /search called with id_type={id_type}, id_number={id_number}")
-    
-    # Create search request to find the person
-    search_request = PersonSearchRequest(
-        id_number=id_number,
-        limit=1
-    )
-    
-    service = PersonService(db)
-    result = service.search_persons(search_request)
-    
-    if not result.persons:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Person not found with {id_type}: {id_number}"
-        )
-    
-    # Get the full person record
-    person_summary = result.persons[0]
-    full_person = service.get_person(person_summary.id)
-    
-    logger.info(f"✅ Found person: {full_person.business_or_surname} (ID: {person_summary.id})")
-    return full_person
-
 
 @router.post("/search", response_model=PersonSearchResponse)
 async def search_persons(
