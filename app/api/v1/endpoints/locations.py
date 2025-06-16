@@ -35,7 +35,7 @@ def create_location(
     Requires appropriate permissions for location management.
     """
     # Check if user can create locations
-    if not current_user.has_permission("location.create"):
+    if not current_user.has_permission("location_create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to create locations"
@@ -49,7 +49,7 @@ def create_location(
         )
     
     # Create location
-    db_location = location.create(
+    db_location = location_create(
         db=db, 
         obj_in=location_in, 
         created_by=current_user.username
@@ -69,7 +69,7 @@ def read_locations(
     
     Users can only see locations they have permission to access.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -88,7 +88,7 @@ def read_location(
     """
     Get location by ID.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -122,7 +122,7 @@ def update_location(
     """
     Update location.
     """
-    if not current_user.has_permission("location.update"):
+    if not current_user.has_permission("location_update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to update locations"
@@ -143,7 +143,7 @@ def update_location(
                 detail="Not enough permissions to update this location"
             )
     
-    updated_location = location.update(
+    updated_location = location_update(
         db=db, 
         db_obj=db_location, 
         obj_in=location_in,
@@ -162,7 +162,7 @@ def delete_location(
     """
     Delete location (soft delete).
     """
-    if not current_user.has_permission("location.delete"):
+    if not current_user.has_permission("location_delete"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to delete locations"
@@ -183,7 +183,7 @@ def delete_location(
                 detail="Not enough permissions to delete this location"
             )
     
-    deleted_location = location.delete(db=db, id=location_id)
+    deleted_location = location_delete(db=db, id=location_id)
     return deleted_location
 
 @router.get("/by-province/{province_code}", response_model=List[LocationResponse])
@@ -196,7 +196,7 @@ def get_locations_by_province(
     """
     Get all locations in a specific province.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -221,7 +221,7 @@ def get_dltc_locations(
     """
     Get all DLTC locations.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -247,7 +247,7 @@ def get_printing_locations(
     """
     Get all printing locations.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -273,7 +273,7 @@ def get_operational_locations(
     """
     Get all operationally active locations.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -299,7 +299,7 @@ def get_public_locations(
     """
     Get all public-facing locations.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -326,7 +326,7 @@ def get_locations_with_capacity(
     """
     Get locations with available capacity.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read locations"
@@ -354,7 +354,7 @@ def update_location_load(
     """
     Update location's current load.
     """
-    if not current_user.has_permission("location.update"):
+    if not current_user.has_permission("location_update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to update location load"
@@ -375,7 +375,7 @@ def update_location_load(
                 detail="Not enough permissions to update this location"
             )
     
-    updated_location = location.update_load(db=db, location_id=location_id, new_load=new_load)
+    updated_location = location_update_load(db=db, location_id=location_id, new_load=new_load)
     return updated_location
 
 @router.get("/statistics", response_model=LocationStatistics)
@@ -387,7 +387,7 @@ def get_location_statistics(
     """
     Get location statistics.
     """
-    if not current_user.has_permission("location.read"):
+    if not current_user.has_permission("location_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read location statistics"
@@ -406,7 +406,7 @@ def validate_location_code(
     """
     Check if location code is available.
     """
-    if not current_user.has_permission("location.create"):
+    if not current_user.has_permission("location_create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to validate location codes"

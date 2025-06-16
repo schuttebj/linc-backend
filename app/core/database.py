@@ -56,17 +56,16 @@ def get_database_session() -> Generator[Session, None, None]:
         yield db
         logger.info("🔧 Database session completed successfully")
     except Exception as e:
+        # Re-raise HTTPExceptions without logging as database errors
+        # These are application-level errors (auth, validation, etc.)
+        from fastapi import HTTPException
+        if isinstance(e, HTTPException):
+            raise
+        
+        # Log actual database errors
         logger.error(f"Database session error: {e}")
         logger.error(f"Database session error type: {type(e)}")
         logger.error(f"Database session error details: {str(e)}")
-        
-        # Special handling for HTTPException
-        if hasattr(e, 'status_code'):
-            logger.error(f"HTTPException status_code: {e.status_code}")
-        if hasattr(e, 'detail'):
-            logger.error(f"HTTPException detail: {e.detail}")
-        if hasattr(e, 'headers'):
-            logger.error(f"HTTPException headers: {e.headers}")
         
         try:
             db.rollback()

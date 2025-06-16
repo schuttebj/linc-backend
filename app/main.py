@@ -275,34 +275,34 @@ async def init_users():
                 {"name": "license_approve", "display_name": "Approve License Applications", "description": "Approve license applications", "category": "license", "resource": "license", "action": "approve"},
                 
                 # User Group management (NEW)
-                {"name": "user_group.create", "display_name": "Create User Groups", "description": "Create user groups and authorities", "category": "admin", "resource": "user_group", "action": "create"},
-                {"name": "user_group.read", "display_name": "View User Groups", "description": "View user groups and authorities", "category": "admin", "resource": "user_group", "action": "read"},
-                {"name": "user_group.update", "display_name": "Update User Groups", "description": "Update user groups and authorities", "category": "admin", "resource": "user_group", "action": "update"},
-                {"name": "user_group.delete", "display_name": "Delete User Groups", "description": "Delete user groups and authorities", "category": "admin", "resource": "user_group", "action": "delete"},
+                {"name": "user_group_create", "display_name": "Create User Groups", "description": "Create user groups and authorities", "category": "admin", "resource": "user_group", "action": "create"},
+                {"name": "user_group_read", "display_name": "View User Groups", "description": "View user groups and authorities", "category": "admin", "resource": "user_group", "action": "read"},
+                {"name": "user_group_update", "display_name": "Update User Groups", "description": "Update user groups and authorities", "category": "admin", "resource": "user_group", "action": "update"},
+                {"name": "user_group_delete", "display_name": "Delete User Groups", "description": "Delete user groups and authorities", "category": "admin", "resource": "user_group", "action": "delete"},
                 
                 # Location management (NEW)
-                {"name": "location.create", "display_name": "Create Locations", "description": "Create testing centers and facilities", "category": "admin", "resource": "location", "action": "create"},
-                {"name": "location.read", "display_name": "View Locations", "description": "View testing centers and facilities", "category": "admin", "resource": "location", "action": "read"},
-                {"name": "location.update", "display_name": "Update Locations", "description": "Update testing centers and facilities", "category": "admin", "resource": "location", "action": "update"},
-                {"name": "location.delete", "display_name": "Delete Locations", "description": "Delete testing centers and facilities", "category": "admin", "resource": "location", "action": "delete"},
+                {"name": "location_create", "display_name": "Create Locations", "description": "Create testing centers and facilities", "category": "admin", "resource": "location", "action": "create"},
+                {"name": "location_read", "display_name": "View Locations", "description": "View testing centers and facilities", "category": "admin", "resource": "location", "action": "read"},
+                {"name": "location_update", "display_name": "Update Locations", "description": "Update testing centers and facilities", "category": "admin", "resource": "location", "action": "update"},
+                {"name": "location_delete", "display_name": "Delete Locations", "description": "Delete testing centers and facilities", "category": "admin", "resource": "location", "action": "delete"},
                 
                 # Office management (NEW)
-                {"name": "office.create", "display_name": "Create Offices", "description": "Create offices within user groups", "category": "admin", "resource": "office", "action": "create"},
-                {"name": "office.read", "display_name": "View Offices", "description": "View offices within user groups", "category": "admin", "resource": "office", "action": "read"},
-                {"name": "office.update", "display_name": "Update Offices", "description": "Update offices within user groups", "category": "admin", "resource": "office", "action": "update"},
-                {"name": "office.delete", "display_name": "Delete Offices", "description": "Delete offices within user groups", "category": "admin", "resource": "office", "action": "delete"},
+                {"name": "office_create", "display_name": "Create Offices", "description": "Create offices within user groups", "category": "admin", "resource": "office", "action": "create"},
+                {"name": "office_read", "display_name": "View Offices", "description": "View offices within user groups", "category": "admin", "resource": "office", "action": "read"},
+                {"name": "office_update", "display_name": "Update Offices", "description": "Update offices within user groups", "category": "admin", "resource": "office", "action": "update"},
+                {"name": "office_delete", "display_name": "Delete Offices", "description": "Delete offices within user groups", "category": "admin", "resource": "office", "action": "delete"},
                 
                 # Resource management (NEW)
-                {"name": "resource.create", "display_name": "Create Resources", "description": "Create location resources", "category": "admin", "resource": "resource", "action": "create"},
-                {"name": "resource.read", "display_name": "View Resources", "description": "View location resources", "category": "admin", "resource": "resource", "action": "read"},
-                {"name": "resource.update", "display_name": "Update Resources", "description": "Update location resources", "category": "admin", "resource": "resource", "action": "update"},
-                {"name": "resource.delete", "display_name": "Delete Resources", "description": "Delete location resources", "category": "admin", "resource": "resource", "action": "delete"},
+                {"name": "resource_create", "display_name": "Create Resources", "description": "Create location resources", "category": "admin", "resource": "resource", "action": "create"},
+                {"name": "resource_read", "display_name": "View Resources", "description": "View location resources", "category": "admin", "resource": "resource", "action": "read"},
+                {"name": "resource_update", "display_name": "Update Resources", "description": "Update location resources", "category": "admin", "resource": "resource", "action": "update"},
+                {"name": "resource_delete", "display_name": "Delete Resources", "description": "Delete location resources", "category": "admin", "resource": "resource", "action": "delete"},
                 
                 # User assignment management (NEW)
-                {"name": "assignment.create", "display_name": "Create User Assignments", "description": "Assign users to locations", "category": "admin", "resource": "assignment", "action": "create"},
-                {"name": "assignment.read", "display_name": "View User Assignments", "description": "View user location assignments", "category": "admin", "resource": "assignment", "action": "read"},
-                {"name": "assignment.update", "display_name": "Update User Assignments", "description": "Update user location assignments", "category": "admin", "resource": "assignment", "action": "update"},
-                {"name": "assignment.delete", "display_name": "Delete User Assignments", "description": "Remove user location assignments", "category": "admin", "resource": "assignment", "action": "delete"},
+                {"name": "assignment_create", "display_name": "Create User Assignments", "description": "Assign users to locations", "category": "admin", "resource": "assignment", "action": "create"},
+                {"name": "assignment_read", "display_name": "View User Assignments", "description": "View user location assignments", "category": "admin", "resource": "assignment", "action": "read"},
+                {"name": "assignment_update", "display_name": "Update User Assignments", "description": "Update user location assignments", "category": "admin", "resource": "assignment", "action": "update"},
+                {"name": "assignment_delete", "display_name": "Delete User Assignments", "description": "Remove user location assignments", "category": "admin", "resource": "assignment", "action": "delete"},
                 
                 # System administration
                 {"name": "user_manage", "display_name": "Manage User Accounts", "description": "Manage user accounts", "category": "admin", "resource": "user", "action": "manage"},

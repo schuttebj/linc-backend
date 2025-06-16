@@ -35,7 +35,7 @@ def create_user_group(
     Requires appropriate permissions for user group management.
     """
     # Check if user can create user groups
-    if not current_user.has_permission("user_group.create"):
+    if not current_user.has_permission("user_group_create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to create user groups"
@@ -49,7 +49,7 @@ def create_user_group(
         )
     
     # Create user group
-    db_user_group = user_group.create(
+    db_user_group = user_group_create(
         db=db, 
         obj_in=user_group_in, 
         created_by=current_user.username
@@ -74,7 +74,7 @@ def read_user_groups(
     
     Users can only see user groups they have permission to access.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -113,7 +113,7 @@ def read_user_group(
     """
     Get user group by ID.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -146,7 +146,7 @@ def update_user_group(
     """
     Update user group.
     """
-    if not current_user.has_permission("user_group.update"):
+    if not current_user.has_permission("user_group_update"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to update user groups"
@@ -166,7 +166,7 @@ def update_user_group(
             detail="Not enough permissions to update this user group"
         )
     
-    updated_user_group = user_group.update(
+    updated_user_group = user_group_update(
         db=db, 
         db_obj=db_user_group, 
         obj_in=user_group_in,
@@ -185,7 +185,7 @@ def delete_user_group(
     """
     Delete user group (soft delete).
     """
-    if not current_user.has_permission("user_group.delete"):
+    if not current_user.has_permission("user_group_delete"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to delete user groups"
@@ -205,7 +205,7 @@ def delete_user_group(
             detail="Not enough permissions to delete this user group"
         )
     
-    deleted_user_group = user_group.delete(db=db, id=user_group_id)
+    deleted_user_group = user_group_delete(db=db, id=user_group_id)
     return deleted_user_group
 
 @router.get("/by-province/{province_code}", response_model=List[UserGroupResponse])
@@ -218,7 +218,7 @@ def get_user_groups_by_province(
     """
     Get all user groups in a specific province.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -243,7 +243,7 @@ def get_dltc_user_groups(
     """
     Get all DLTC user groups.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -269,7 +269,7 @@ def get_help_desk_user_groups(
     """
     Get all help desk user groups.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -295,7 +295,7 @@ def get_user_group_statistics(
     """
     Get user group statistics.
     """
-    if not current_user.has_permission("user_group.read"):
+    if not current_user.has_permission("user_group_read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user group statistics"
@@ -314,7 +314,7 @@ def validate_user_group_code(
     """
     Check if user group code is available.
     """
-    if not current_user.has_permission("user_group.create"):
+    if not current_user.has_permission("user_group_create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to validate user group codes"
