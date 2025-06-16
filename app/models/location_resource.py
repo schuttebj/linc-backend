@@ -69,7 +69,7 @@ class LocationResource(BaseModel):
     
     # Specifications and details
     manufacturer = Column(String(100), nullable=True, comment="Manufacturer name")
-    model_number = Column(String(100), nullable=True, comment="Model/part number")
+    part_number = Column(String(100), nullable=True, comment="Model/part number")
     serial_number = Column(String(100), nullable=True, comment="Serial number")
     specifications = Column(Text, nullable=True, comment="Technical specifications")
     

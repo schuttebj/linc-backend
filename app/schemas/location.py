@@ -401,7 +401,7 @@ class LocationResourceBase(BaseModel):
     resource_type: ResourceTypeEnum = Field(..., description="Resource type")
     subtype: Optional[str] = Field(None, max_length=50, description="Resource subtype")
     manufacturer: Optional[str] = Field(None, max_length=100, description="Manufacturer")
-    model_number: Optional[str] = Field(None, max_length=100, description="Model number")
+    part_number: Optional[str] = Field(None, max_length=100, description="Model/part number")
     serial_number: Optional[str] = Field(None, max_length=100, description="Serial number")
     specifications: Optional[str] = Field(None, description="Specifications")
     resource_status: ResourceStatusEnum = Field(ResourceStatusEnum.OPERATIONAL, description="Resource status")
@@ -435,7 +435,7 @@ class LocationResourceUpdate(BaseModel):
     resource_name: Optional[str] = Field(None, min_length=1, max_length=100)
     subtype: Optional[str] = Field(None, max_length=50)
     manufacturer: Optional[str] = Field(None, max_length=100)
-    model_number: Optional[str] = Field(None, max_length=100)
+    part_number: Optional[str] = Field(None, max_length=100)
     serial_number: Optional[str] = Field(None, max_length=100)
     specifications: Optional[str] = None
     resource_status: Optional[ResourceStatusEnum] = None
@@ -469,7 +469,7 @@ class LocationResourceResponse(BaseModel):
     resource_type: str
     subtype: Optional[str]
     manufacturer: Optional[str]
-    model_number: Optional[str]
+    part_number: Optional[str]
     serial_number: Optional[str]
     specifications: Optional[str]
     resource_status: str
