@@ -14,6 +14,13 @@ from .license import (
 from .user import User, Role, Permission, UserAuditLog, UserStatus
 from .audit import AuditLog, FileMetadata
 
+# Location Management Models (NEW)
+from .user_group import UserGroup, UserGroupType, RegistrationStatus
+from .office import Office, OfficeType
+from .location import Location, InfrastructureType, OperationalStatus, LocationScope
+from .location_resource import LocationResource, ResourceType, ResourceStatus
+from .user_location_assignment import UserLocationAssignment, AssignmentType, AssignmentStatus
+
 __all__ = [
     "BaseModel",
     "Person", 
@@ -33,6 +40,22 @@ __all__ = [
     "UserStatus",
     "AuditLog",
     "FileMetadata",
+    # Location Management Models
+    "UserGroup",
+    "UserGroupType",
+    "RegistrationStatus", 
+    "Office",
+    "OfficeType",
+    "Location",
+    "InfrastructureType",
+    "OperationalStatus",
+    "LocationScope",
+    "LocationResource",
+    "ResourceType",
+    "ResourceStatus",
+    "UserLocationAssignment",
+    "AssignmentType",
+    "AssignmentStatus",
     # Enums
     "Gender",
     "IdDocumentType", 

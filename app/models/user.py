@@ -79,6 +79,12 @@ class User(BaseModel):
     region = Column(String(100), nullable=True, comment="Assigned region")
     office_location = Column(String(200), nullable=True, comment="Physical office location")
     
+    # User group assignment (NEW - from documentation requirements)
+    user_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=True,
+                          comment="Primary user group assignment")
+    user_group_code = Column(String(4), nullable=True, index=True,
+                           comment="Primary user group code (e.g., WC01, GP03)")
+    
     # Security settings
     require_password_change = Column(Boolean, nullable=False, default=False, comment="Force password change on next login")
     password_expires_at = Column(DateTime, nullable=True, comment="Password expiration date")
@@ -117,6 +123,8 @@ class User(BaseModel):
     # Relationships
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     audit_logs = relationship("UserAuditLog", back_populates="user")
+    user_group = relationship("UserGroup", back_populates="users")
+    location_assignments = relationship("UserLocationAssignment", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}', status='{self.status}')>"
@@ -147,6 +155,71 @@ class User(BaseModel):
     def has_role(self, role_name: str) -> bool:
         """Check if user has specific role"""
         return any(role.name == role_name for role in self.roles)
+    
+    # NEW METHODS - User Group and Location Management
+    def can_access_province(self, province_code: str) -> bool:
+        """Check if user can access a specific province"""
+        if self.is_superuser:
+            return True
+        
+        # If user has a user group, check group permissions
+        if self.user_group:
+            # National Help Desk can access all provinces
+            if self.user_group.is_national_help_desk:
+                return True
+            
+            # Provincial Help Desk or local groups can access their province
+            if self.user_group.province_code == province_code:
+                return True
+        
+        # Check user's directly assigned province
+        return self.province == province_code
+    
+    def can_manage_user_group(self, target_group_code: str) -> bool:
+        """Check if user can manage another user group"""
+        if self.is_superuser:
+            return True
+        
+        if self.user_group:
+            return self.user_group.can_manage_user_group(target_group_code)
+        
+        return False
+    
+    def get_primary_location_assignment(self):
+        """Get user's primary location assignment"""
+        for assignment in self.location_assignments:
+            if (assignment.is_valid_assignment and 
+                assignment.assignment_type == "primary"):
+                return assignment
+        return None
+    
+    def get_accessible_locations(self):
+        """Get all locations user can access"""
+        locations = []
+        for assignment in self.location_assignments:
+            if assignment.is_valid_assignment:
+                locations.append(assignment.location)
+        return locations
+    
+    def can_access_location(self, location_id: str) -> bool:
+        """Check if user can access a specific location"""
+        if self.is_superuser:
+            return True
+        
+        # Check direct location assignments
+        for assignment in self.location_assignments:
+            if (assignment.is_valid_assignment and 
+                str(assignment.location_id) == str(location_id)):
+                return True
+        
+        return False
+    
+    @property
+    def authority_level(self) -> str:
+        """Get user's authority level based on user group"""
+        if self.user_group:
+            return self.user_group.authority_level
+        return "Local"
 
 class Role(BaseModel):
     """
