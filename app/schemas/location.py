@@ -713,9 +713,13 @@ class UserLocationAssignmentBase(BaseModel):
 
 class UserLocationAssignmentCreate(UserLocationAssignmentBase):
     """User location assignment creation schema"""
-    user_id: str = Field(..., description="User ID")
+    user_id: str = Field(..., description="User ID - Must be existing user")
     location_id: str = Field(..., description="Location ID")
     office_id: Optional[str] = Field(None, description="Office ID")
+    
+    # Optional user creation data for new users (if user_id is "new")
+    create_new_user: Optional[bool] = Field(False, description="Create new user if user_id is 'new'")
+    new_user_data: Optional[Dict[str, Any]] = Field(None, description="New user data if creating user")
 
 class UserLocationAssignmentUpdate(BaseModel):
     """User location assignment update schema"""

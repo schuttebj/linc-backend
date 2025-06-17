@@ -53,19 +53,21 @@ class CRUDUserManagement:
                 detail="V06004: Email already exists"
             )
         
-        # V06001: Validate user group
-        user_group = db.query(UserGroup).filter(
-            UserGroup.user_group_code == user_data.user_group_code,
-            UserGroup.is_active == True
-        ).first()
-        if not user_group:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="V06001: User Group must be active and valid"
-            )
-        
-        # Generate user number
-        user_number = self._generate_user_number(db, user_data.user_group_code)
+        # V06001: Validate user group if provided
+        user_group = None
+        user_number = None
+        if user_data.user_group_code:
+            user_group = db.query(UserGroup).filter(
+                UserGroup.user_group_code == user_data.user_group_code,
+                UserGroup.is_active == True
+            ).first()
+            if not user_group:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="V06001: User Group must be active and valid"
+                )
+            # Generate user number
+            user_number = self._generate_user_number(db, user_data.user_group_code)
         
         # Create user
         user = User(
@@ -114,7 +116,7 @@ class CRUDUserManagement:
             
             # Audit
             created_by=created_by,
-            user_group_id=user_group.id
+            user_group_id=user_group.id if user_group else None
         )
         
         db.add(user)
@@ -187,6 +189,67 @@ class CRUDUserManagement:
         users = query.order_by(User.created_at.desc()).offset(offset).limit(size).all()
         
         return users, total
+    
+    def search_users(
+        self,
+        db: Session,
+        *,
+        search_term: str,
+        limit: int = 50,
+        exclude_assigned_to_location: Optional[str] = None,
+        user_type_filter: Optional[str] = None
+    ) -> List[User]:
+        """Search users for staff assignment with enhanced filtering"""
+        
+        query = db.query(User).options(
+            selectinload(User.user_group),
+            selectinload(User.roles),
+            selectinload(User.location_assignments)
+        )
+        
+        # Text search across multiple fields
+        search_filter = or_(
+            User.full_name.ilike(f"%{search_term}%"),
+            User.username.ilike(f"%{search_term}%"),
+            User.email.ilike(f"%{search_term}%"),
+            User.employee_id.ilike(f"%{search_term}%"),
+            User.user_name.ilike(f"%{search_term}%")
+        )
+        query = query.filter(search_filter)
+        
+        # Filter by user type if specified
+        if user_type_filter:
+            query = query.filter(User.user_type_code == user_type_filter)
+        
+        # Exclude users already assigned to specific location
+        if exclude_assigned_to_location:
+            from app.models.user_location_assignment import UserLocationAssignment
+            assigned_user_ids = db.query(UserLocationAssignment.user_id).filter(
+                UserLocationAssignment.location_id == exclude_assigned_to_location,
+                UserLocationAssignment.is_active == True
+            ).subquery()
+            query = query.filter(~User.id.in_(assigned_user_ids))
+        
+        # Only active users
+        query = query.filter(User.is_active == True)
+        
+        # Order by relevance (exact matches first, then partial)
+        query = query.order_by(
+            # Exact username matches first
+            func.case(
+                (User.username.ilike(search_term), 1),
+                else_=2
+            ),
+            # Then exact name matches
+            func.case(
+                (User.full_name.ilike(search_term), 1),
+                else_=2
+            ),
+            # Then by creation date (newest first)
+            User.created_at.desc()
+        )
+        
+        return query.limit(limit).all()
     
     def update_user(
         self,

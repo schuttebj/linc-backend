@@ -20,6 +20,10 @@ from app.schemas.user_management import (
     UserValidationResult, PermissionCheckResult,
     UserSessionCreate, UserSessionResponse
 )
+from app.schemas.location import (
+    UserLocationAssignmentCreate,
+    UserLocationAssignmentResponse
+)
 from app.models.user import User
 
 logger = structlog.get_logger()
@@ -334,11 +338,14 @@ def delete_user_profile(
 def search_users(
     q: str = Query(..., min_length=2, description="Search term"),
     limit: int = Query(50, ge=1, le=100, description="Maximum results"),
+    exclude_assigned: Optional[str] = Query(None, description="Exclude users already assigned to this location ID"),
+    user_type: Optional[str] = Query(None, description="Filter by user type"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("user_view"))
 ):
     """
     Search users by name, username, email, or employee ID.
+    Enhanced for staff assignment workflow.
     
     Requires user_view permission.
     """
@@ -347,13 +354,30 @@ def search_users(
             "Searching users",
             search_term=q,
             limit=limit,
+            exclude_assigned=exclude_assigned,
+            user_type=user_type,
             requested_by=current_user.username
         )
         
-        # Search users
-        # (Implementation would include search logic)
+        # Search users with enhanced filters for staff assignment
+        users = user_management.search_users(
+            db=db,
+            search_term=q,
+            limit=limit,
+            exclude_assigned_to_location=exclude_assigned,
+            user_type_filter=user_type
+        )
         
-        return []
+        # Convert to response format
+        user_responses = [UserProfileResponse.from_user(user) for user in users]
+        
+        logger.info(
+            "Users search completed",
+            results_count=len(user_responses),
+            search_term=q
+        )
+        
+        return user_responses
         
     except HTTPException:
         raise
@@ -642,6 +666,125 @@ def validate_email(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to validate email"
+        )
+
+# ========================================
+# USER LOCATION ASSIGNMENT ENDPOINTS
+# ========================================
+
+@router.post("/{user_id}/assignments", response_model=UserLocationAssignmentResponse, status_code=status.HTTP_201_CREATED)
+def assign_user_to_location(
+    user_id: str,
+    assignment_data: UserLocationAssignmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("staff_assign"))
+):
+    """
+    Assign user to location from user management screen.
+    
+    Requires staff_assign permission.
+    """
+    try:
+        logger.info(
+            "Assigning user to location",
+            user_id=user_id,
+            location_id=assignment_data.location_id,
+            assigned_by=current_user.username
+        )
+        
+        # Verify user exists
+        user = user_management.get_user(db=db, user_id=user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Override user_id in assignment data
+        assignment_data.user_id = user_id
+        
+        # Create assignment using location service
+        from app.crud import location as location_crud
+        assignment = location_crud.create_user_location_assignment(
+            db=db,
+            assignment_data=assignment_data,
+            assigned_by=current_user.username
+        )
+        
+        logger.info(
+            "User assigned to location successfully",
+            user_id=user_id,
+            location_id=assignment_data.location_id,
+            assignment_id=str(assignment.id)
+        )
+        
+        return UserLocationAssignmentResponse.from_orm(assignment)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error assigning user to location",
+            user_id=user_id,
+            location_id=assignment_data.location_id,
+            error=str(e),
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to assign user to location"
+        )
+
+@router.get("/{user_id}/assignments", response_model=List[UserLocationAssignmentResponse])
+def get_user_assignments(
+    user_id: str,
+    active_only: bool = Query(True, description="Return only active assignments"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("user_view"))
+):
+    """
+    Get user location assignments.
+    
+    Requires user_view permission.
+    """
+    try:
+        logger.info(
+            "Getting user assignments",
+            user_id=user_id,
+            active_only=active_only,
+            requested_by=current_user.username
+        )
+        
+        # Verify user exists
+        user = user_management.get_user(db=db, user_id=user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Get assignments
+        from app.crud import location as location_crud
+        assignments = location_crud.get_user_location_assignments(
+            db=db,
+            user_id=user_id,
+            active_only=active_only
+        )
+        
+        return [UserLocationAssignmentResponse.from_orm(assignment) for assignment in assignments]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error getting user assignments",
+            user_id=user_id,
+            error=str(e),
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve user assignments"
         )
 
 # ========================================

@@ -125,8 +125,8 @@ class GeographicAssignmentBase(BaseModel):
 class UserProfileBase(BaseModel):
     """Base user profile schema"""
     # Core identification (NEW - following documentation)
-    user_group_code: str = Field(..., min_length=4, max_length=4, description="User group code (SCHAR2)")
-    office_code: str = Field(..., min_length=1, max_length=1, description="Office code within user group (SCHAR1)")
+    user_group_code: Optional[str] = Field(None, min_length=4, max_length=4, description="User group code (SCHAR2) - Optional for initial user creation")
+    office_code: Optional[str] = Field(None, min_length=1, max_length=1, description="Office code within user group (SCHAR1) - Optional for initial user creation")
     user_name: str = Field(..., min_length=1, max_length=30, description="Display name for user (SCHAR1)")
     user_type_code: UserType = Field(UserType.STANDARD, description="User type code")
     
