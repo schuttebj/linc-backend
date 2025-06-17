@@ -335,7 +335,7 @@ def search_users(
     q: str = Query(..., min_length=2, description="Search term"),
     limit: int = Query(50, ge=1, le=100, description="Maximum results"),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user_view"))
 ):
     """
     Search users by name, username, email, or employee ID.
@@ -378,7 +378,7 @@ def create_user_session(
     user_id: str,
     session_data: UserSessionCreate,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("session_create"))
+    current_user: User = Depends(require_permission("session_create"))
 ):
     """
     Create user session.
@@ -443,7 +443,7 @@ def get_user_sessions(
     user_id: str,
     active_only: bool = Query(True, description="Return only active sessions"),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("session_view"))
+    current_user: User = Depends(require_permission("session_view"))
 ):
     """
     Get user sessions.
@@ -481,7 +481,7 @@ def get_user_sessions(
 def end_user_session(
     session_id: str,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("session_manage"))
+    current_user: User = Depends(require_permission("session_manage"))
 ):
     """
     End user session.
@@ -526,7 +526,7 @@ def end_user_session(
 @router.get("/statistics/overview", response_model=UserStatistics)
 def get_user_statistics(
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user_view"))
 ):
     """
     Get user management statistics.
@@ -582,7 +582,7 @@ def get_user_statistics(
 def validate_username(
     username: str = Query(..., min_length=3, max_length=50),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user_create"))
 ):
     """
     Validate username availability.
@@ -615,7 +615,7 @@ def validate_username(
 def validate_email(
     email: str = Query(..., description="Email address to validate"),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user_create"))
 ):
     """
     Validate email availability.
