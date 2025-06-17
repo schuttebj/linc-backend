@@ -511,11 +511,11 @@ class UserValidationResult(BaseModel):
     business_rule_violations: List[str] = Field(default=[], description="Business rule violations")
     
     # Specific validation checks (following documentation rules)
-    user_group_valid: bool = Field(True, description="V-USER-001: User Group must be active and valid")
-    office_valid: bool = Field(True, description="V-USER-002: Office must exist within selected User Group")
-    user_name_unique: bool = Field(True, description="V-USER-003: User Name must be unique within User Group")
-    email_unique: bool = Field(True, description="V-USER-004: Email must be valid and unique system-wide")
-    id_number_valid: bool = Field(True, description="V-USER-005: ID Number must be valid for selected ID Type")
+    user_group_valid: bool = Field(True, description="V06001: User Group must be active and valid")
+    office_valid: bool = Field(True, description="V06002: Office must exist within selected User Group")
+    user_name_unique: bool = Field(True, description="V06003: User Name must be unique within User Group")
+    email_unique: bool = Field(True, description="V06004: Email must be valid and unique system-wide")
+    id_number_valid: bool = Field(True, description="V06005: ID Number must be valid for selected ID Type")
 
 class PermissionCheckResult(BaseModel):
     """Permission check result"""

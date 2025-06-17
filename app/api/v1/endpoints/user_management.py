@@ -13,13 +13,13 @@ import structlog
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.permissions import require_permission, require_any_permission
-from app.crud.user_profile import user_profile
+from app.crud.user_management import user_management
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserProfileResponse,
     UserListFilter, UserListResponse, UserStatistics,
     UserSessionCreate, UserSessionResponse
 )
-from app.models.user_profile import UserProfile
+from app.models.user import User
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -41,11 +41,11 @@ def create_user_profile(
     Requires user_create permission.
     
     Implements business rules:
-    - V-USER-001: User Group must be active and valid
-    - V-USER-002: Office must exist within selected User Group
-    - V-USER-003: User Name must be unique within User Group
-    - V-USER-004: Email must be valid and unique system-wide
-    - V-USER-005: ID Number must be valid for selected ID Type
+    - V06001: User Group must be active and valid
+- V06002: Office must exist within selected User Group
+- V06003: User Name must be unique within User Group
+- V06004: Email must be valid and unique system-wide
+- V06005: ID Number must be valid for selected ID Type
     """
     try:
         logger.info(
@@ -56,7 +56,7 @@ def create_user_profile(
         )
         
         # Create user profile
-        new_user = user_profile.create_user_profile(
+        new_user = user_management.create_user(
             db=db,
             user_data=user_data,
             created_by=current_user.username
@@ -126,7 +126,7 @@ def list_user_profiles(
         )
         
         # Get user profiles with permission filtering
-        users, total = user_profile.list_user_profiles(
+        users, total = user_management.list_users(
             db=db,
             filters=filters,
             page=page,
@@ -177,7 +177,7 @@ def get_user_profile_by_id(
             requested_by=current_user.username
         )
         
-        user = user_profile.get_user_profile(db=db, user_id=user_id)
+        user = user_management.get_user(db=db, user_id=user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

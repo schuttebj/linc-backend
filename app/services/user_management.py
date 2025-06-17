@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 import structlog
 
-from app.models.user_profile import UserProfile, UserSession, UserStatus, UserType, IDType
+from app.models.user import User, UserSession, UserStatus, UserType, IDType
 from app.models.location import UserGroup, Office
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter,
@@ -295,7 +295,7 @@ class UserManagementService:
             'business_rule_violations': []
         }
         
-        # V-USER-001: User Group validation
+        # V06001: User Group validation
         user_group = db.query(UserGroup).filter(
             UserGroup.user_group_code == user_data.user_group_code
         ).first()
@@ -305,7 +305,7 @@ class UserManagementService:
         elif not user_group.is_active:
             validation_result['validation_errors'].append("User Group is not active")
         
-        # V-USER-002: Office validation
+        # V06002: Office validation
         if user_group:
             office_exists = any(
                 office.office_code == user_data.office_code
@@ -316,10 +316,10 @@ class UserManagementService:
                     f"Office '{user_data.office_code}' does not exist in User Group '{user_data.user_group_code}'"
                 )
         
-        # V-USER-003: User Name uniqueness within User Group
-        existing_user_name = db.query(UserProfile).filter(
-            UserProfile.user_group_code == user_data.user_group_code,
-            UserProfile.user_name == user_data.user_name
+        # V06003: User Name uniqueness within User Group
+        existing_user_name = db.query(User).filter(
+            User.user_group_code == user_data.user_group_code,
+            User.user_name == user_data.user_name
         ).first()
         
         if existing_user_name:
@@ -327,9 +327,9 @@ class UserManagementService:
                 f"User Name '{user_data.user_name}' already exists in User Group '{user_data.user_group_code}'"
             )
         
-        # V-USER-004: Email uniqueness system-wide
-        existing_email = db.query(UserProfile).filter(
-            UserProfile.email == user_data.personal_details.email
+        # V06004: Email uniqueness system-wide
+        existing_email = db.query(User).filter(
+            User.email == user_data.personal_details.email
         ).first()
         
         if existing_email:
@@ -337,7 +337,7 @@ class UserManagementService:
                 f"Email '{user_data.personal_details.email}' is already in use"
             )
         
-        # V-USER-005: ID Number validation
+        # V06005: ID Number validation
         id_validation = self._validate_id_number(
             user_data.personal_details.id_type,
             user_data.personal_details.id_number

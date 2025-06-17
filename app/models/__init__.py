@@ -12,7 +12,7 @@ from .license import (
     LicenseType
 )
 from .user import User, Role, Permission, UserAuditLog, UserStatus
-from .user_profile import UserProfile, UserSession
+# UserProfile functionality consolidated into User model
 from .audit import AuditLog, FileMetadata
 
 # Location Management Models (NEW)
