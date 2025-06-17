@@ -10,6 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.permissions import require_permission
 from app.crud.user_group import user_group, user_group_create, user_group_update, user_group_delete
 from app.schemas.location import (
     UserGroupCreate, 
@@ -27,19 +28,13 @@ def create_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_in: UserGroupCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group_create"))
 ):
     """
     Create new user group.
     
-    Requires appropriate permissions for user group management.
+    Requires user_group_create permission.
     """
-    # Check if user can create user groups
-    if not current_user.has_permission("user_group_create"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to create user groups"
-        )
     
     # Check if user group code already exists
     if user_group.check_code_exists(db, user_group_in.user_group_code):
@@ -60,7 +55,7 @@ def create_user_group(
 @router.get("/", response_model=List[UserGroupResponse])
 def read_user_groups(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("user_group_read")),
     skip: int = 0,
     limit: int = 100,
     province_code: Optional[str] = Query(None, description="Filter by province code"),
@@ -72,13 +67,8 @@ def read_user_groups(
     """
     Retrieve user groups with optional filtering.
     
-    Users can only see user groups they have permission to access.
+    Requires user_group_read permission.
     """
-    if not current_user.has_permission("user_group_read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user groups"
-        )
     
     # Create filter object
     filters = UserGroupListFilter(
@@ -108,16 +98,13 @@ def read_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_id: UUID,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group_read"))
 ):
     """
     Get user group by ID.
+    
+    Requires user_group_read permission.
     """
-    if not current_user.has_permission("user_group_read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user groups"
-        )
     
     db_user_group = user_group.get(db=db, id=user_group_id)
     if not db_user_group:
@@ -141,16 +128,13 @@ def update_user_group(
     db: Session = Depends(get_db),
     user_group_id: UUID,
     user_group_in: UserGroupUpdate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group_update"))
 ):
     """
     Update user group.
+    
+    Requires user_group_update permission.
     """
-    if not current_user.has_permission("user_group_update"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to update user groups"
-        )
     
     db_user_group = user_group.get(db=db, id=user_group_id)
     if not db_user_group:
@@ -180,16 +164,13 @@ def delete_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_id: UUID,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group_delete"))
 ):
     """
     Delete user group (soft delete).
+    
+    Requires user_group_delete permission.
     """
-    if not current_user.has_permission("user_group_delete"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to delete user groups"
-        )
     
     db_user_group = user_group.get(db=db, id=user_group_id)
     if not db_user_group:

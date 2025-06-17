@@ -11,6 +11,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.permissions import require_permission
 from app.models.user import User
 from app.services.person_service import PersonService
 from app.schemas.person import (
@@ -37,7 +38,7 @@ router = APIRouter()
 async def create_person(
     person_data: PersonCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_create"))
 ):
     """
     Create a new person with optional related entities (aliases, addresses, natural person/organization details).
@@ -68,7 +69,7 @@ async def search_person_by_id(
     id_type: str = Query(..., description="ID document type (01, 02, 03, 05)"),
     id_number: str = Query(..., description="ID document number"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_view"))
 ):
     """
     Search for a person by ID type and number - returns full person record.
@@ -116,7 +117,7 @@ async def search_person_by_id(
 async def get_person(
     person_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_view"))
 ):
     """
     Get person by ID with all related data.
@@ -139,7 +140,7 @@ async def update_person(
     person_id: str,
     person_data: PersonUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_edit"))
 ):
     """
     Update person information.
@@ -159,7 +160,7 @@ async def update_person(
 async def delete_person(
     person_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_delete"))
 ):
     """
     Soft delete person (deactivate).
@@ -183,7 +184,7 @@ async def delete_person(
 async def search_persons(
     search_request: PersonSearchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_view"))
 ):
     """
     Advanced person search with filtering, sorting, and pagination.
@@ -213,7 +214,7 @@ async def list_persons(
     person_nature: PersonNature = Query(None, description="Filter by person nature (01-17)"),  # CORRECTED
     is_active: bool = Query(None, description="Filter by active status"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("person_view"))
 ):
     """
     List persons with basic filtering and pagination.

@@ -10,6 +10,7 @@ import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.permissions import require_permission, require_admin_permission
 from app.services.user_service import UserService
 from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse, UserListResponse, UserListFilter,
@@ -22,17 +23,7 @@ from app.models.user import User
 logger = structlog.get_logger()
 router = APIRouter()
 
-# Dependency to check admin permissions
-def require_admin_permission(permission: str):
-    """Dependency to check if user has specific admin permission"""
-    def check_permission(current_user: User = Depends(get_current_user)):
-        if not current_user.is_superuser and not current_user.has_permission(permission):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission required: {permission}"
-            )
-        return current_user
-    return check_permission
+# Note: require_admin_permission is now imported from app.core.permissions
 
 # User Management Endpoints
 @router.post("/", response_model=UserResponse)

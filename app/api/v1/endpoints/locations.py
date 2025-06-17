@@ -10,6 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.permissions import require_permission
 from app.crud.location import location, location_create, location_update, location_delete
 from app.schemas.location import (
     LocationCreate, 
@@ -27,19 +28,13 @@ def create_location(
     *,
     db: Session = Depends(get_db),
     location_in: LocationCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("location_create"))
 ):
     """
     Create new location.
     
-    Requires appropriate permissions for location management.
+    Requires location_create permission.
     """
-    # Check if user can create locations
-    if not current_user.has_permission("location_create"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to create locations"
-        )
     
     # Check if location code already exists
     if location.check_code_exists(db, location_in.location_code):
@@ -60,20 +55,15 @@ def create_location(
 @router.get("/", response_model=List[LocationResponse])
 def read_locations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("location_read")),
     skip: int = 0,
     limit: int = 100
 ):
     """
     Retrieve locations with optional filtering.
     
-    Users can only see locations they have permission to access.
+    Requires location_read permission.
     """
-    if not current_user.has_permission("location_read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read locations"
-        )
     
     locations = location.get_multi(db=db, skip=skip, limit=limit)
     return locations

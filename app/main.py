@@ -233,6 +233,80 @@ async def reset_database():
             "timestamp": time.time()
         }
 
+# Add missing permissions endpoint
+@app.post("/admin/add-missing-permissions")
+async def add_missing_permissions():
+    """Add any missing permissions to existing database"""
+    try:
+        from app.core.database import get_db_context
+        from app.models.user import Permission
+        from datetime import datetime
+        import uuid
+        
+        with get_db_context() as db:
+            # Define all expected permissions
+            all_permissions = [
+                # Person management  
+                {"name": "person_view", "display_name": "View Person Records", "description": "View person records", "category": "person", "resource": "person", "action": "read"},
+                {"name": "person_create", "display_name": "Create Person Records", "description": "Create person records", "category": "person", "resource": "person", "action": "create"},
+                {"name": "person_edit", "display_name": "Edit Person Records", "description": "Edit person records", "category": "person", "resource": "person", "action": "update"},
+                {"name": "person_delete", "display_name": "Delete Person Records", "description": "Delete person records", "category": "person", "resource": "person", "action": "delete"},
+                
+                # License management
+                {"name": "license_view", "display_name": "View License Applications", "description": "View license applications", "category": "license", "resource": "license", "action": "read"},
+                {"name": "license_create", "display_name": "Create License Applications", "description": "Create license applications", "category": "license", "resource": "license", "action": "create"},
+                {"name": "license_approve", "display_name": "Approve License Applications", "description": "Approve license applications", "category": "license", "resource": "license", "action": "approve"},
+                
+                # User Group management
+                {"name": "user_group_create", "display_name": "Create User Groups", "description": "Create user groups and authorities", "category": "admin", "resource": "user_group", "action": "create"},
+                {"name": "user_group_read", "display_name": "View User Groups", "description": "View user groups and authorities", "category": "admin", "resource": "user_group", "action": "read"},
+                {"name": "user_group_update", "display_name": "Update User Groups", "description": "Update user groups and authorities", "category": "admin", "resource": "user_group", "action": "update"},
+                {"name": "user_group_delete", "display_name": "Delete User Groups", "description": "Delete user groups and authorities", "category": "admin", "resource": "user_group", "action": "delete"},
+                
+                # Location management
+                {"name": "location_create", "display_name": "Create Locations", "description": "Create testing centers and facilities", "category": "admin", "resource": "location", "action": "create"},
+                {"name": "location_read", "display_name": "View Locations", "description": "View testing centers and facilities", "category": "admin", "resource": "location", "action": "read"},
+                {"name": "location_update", "display_name": "Update Locations", "description": "Update testing centers and facilities", "category": "admin", "resource": "location", "action": "update"},
+                {"name": "location_delete", "display_name": "Delete Locations", "description": "Delete testing centers and facilities", "category": "admin", "resource": "location", "action": "delete"},
+            ]
+            
+            # Get existing permissions
+            existing_permissions = {p.name for p in db.query(Permission).all()}
+            
+            # Add missing permissions
+            added_permissions = []
+            for perm_data in all_permissions:
+                if perm_data["name"] not in existing_permissions:
+                    permission = Permission(
+                        id=uuid.uuid4(),
+                        name=perm_data["name"],
+                        display_name=perm_data["display_name"],
+                        description=perm_data["description"],
+                        category=perm_data["category"],
+                        resource=perm_data["resource"],
+                        action=perm_data["action"],
+                        created_at=datetime.utcnow(),
+                        created_by="system"
+                    )
+                    db.add(permission)
+                    added_permissions.append(perm_data["name"])
+            
+            db.commit()
+            
+            return {
+                "status": "success",
+                "message": f"Added {len(added_permissions)} missing permissions",
+                "added_permissions": added_permissions,
+                "timestamp": time.time()
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # User initialization endpoint (for debugging)
 @app.post("/admin/init-users")
 async def init_users():
@@ -268,6 +342,7 @@ async def init_users():
                 {"name": "person_view", "display_name": "View Person Records", "description": "View person records", "category": "person", "resource": "person", "action": "read"},
                 {"name": "person_create", "display_name": "Create Person Records", "description": "Create person records", "category": "person", "resource": "person", "action": "create"},
                 {"name": "person_edit", "display_name": "Edit Person Records", "description": "Edit person records", "category": "person", "resource": "person", "action": "update"},
+                {"name": "person_delete", "display_name": "Delete Person Records", "description": "Delete person records", "category": "person", "resource": "person", "action": "delete"},
                 
                 # License management
                 {"name": "license_view", "display_name": "View License Applications", "description": "View license applications", "category": "license", "resource": "license", "action": "read"},
