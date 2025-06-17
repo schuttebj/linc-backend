@@ -312,7 +312,7 @@ class LocationBase(BaseModel):
     requires_appointment: bool = Field(False, description="Requires appointment")
 
 class LocationCreateNested(BaseModel):
-    """Location creation schema with nested address support"""
+    """Location creation schema with nested address support (matches frontend field names)"""
     location_code: str = Field(..., min_length=1, max_length=20, description="Location identifier")
     location_name: str = Field(..., min_length=1, max_length=200, description="Location name")
     user_group_id: str = Field(..., description="Parent user group ID")
@@ -329,22 +329,23 @@ class LocationCreateNested(BaseModel):
     # Operational configuration
     operational_status: OperationalStatusEnum = Field(OperationalStatusEnum.OPERATIONAL, description="Operational status")
     location_scope: LocationScopeEnum = Field(LocationScopeEnum.LOCAL, description="Service scope")
-    daily_capacity: int = Field(0, ge=0, description="Daily capacity")
-    current_load: int = Field(0, ge=0, description="Current load")
-    max_concurrent_operations: int = Field(1, ge=1, description="Max concurrent operations")
     
-    # Service configuration
+    # Contact information (using frontend field names)
+    contact_person: Optional[str] = Field(None, max_length=100, description="Contact person")
+    phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
+    email_address: Optional[str] = Field(None, max_length=255, description="Email address")  # Frontend uses email_address
+    
+    # Capacity fields (using frontend field names)
+    max_users: Optional[int] = Field(None, ge=0, description="Maximum users")  # Frontend uses max_users
+    max_daily_capacity: Optional[int] = Field(None, ge=0, description="Maximum daily capacity")  # Frontend uses max_daily_capacity
+    
+    # Optional fields that may come from frontend
+    current_load: Optional[int] = Field(0, ge=0, description="Current load")
+    max_concurrent_operations: Optional[int] = Field(1, ge=1, description="Max concurrent operations")
     services_offered: Optional[List[str]] = Field(None, description="Services offered")
     operating_hours: Optional[Dict[str, Any]] = Field(None, description="Operating hours")
     special_hours: Optional[Dict[str, Any]] = Field(None, description="Special hours")
-    
-    # Contact information
-    contact_person: Optional[str] = Field(None, max_length=100, description="Contact person")
-    phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
     fax_number: Optional[str] = Field(None, max_length=20, description="Fax number")
-    email: Optional[str] = Field(None, max_length=255, description="Email address")
-    
-    # Facility details
     facility_description: Optional[str] = Field(None, description="Facility description")
     accessibility_features: Optional[List[str]] = Field(None, description="Accessibility features")
     parking_availability: Optional[bool] = Field(None, description="Parking available")
@@ -353,12 +354,19 @@ class LocationCreateNested(BaseModel):
     public_instructions: Optional[str] = Field(None, description="Public instructions")
     
     # Status flags
-    is_active: bool = Field(True, description="Active status")
-    is_public: bool = Field(True, description="Public visibility")
-    requires_appointment: bool = Field(False, description="Requires appointment")
+    is_active: Optional[bool] = Field(True, description="Active status")
+    is_public: Optional[bool] = Field(True, description="Public visibility")
+    requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
     
     def to_flat_location_create(self) -> 'LocationBase':
         """Convert nested address structure to flat structure for database storage"""
+        # Map frontend field names to backend field names
+        daily_capacity = 0
+        if self.max_daily_capacity is not None:
+            daily_capacity = self.max_daily_capacity
+        elif self.max_users is not None:
+            daily_capacity = self.max_users
+        
         flat_data = {
             "location_code": self.location_code,
             "location_name": self.location_name,
@@ -374,25 +382,25 @@ class LocationCreateNested(BaseModel):
             "longitude": self.longitude,
             "operational_status": self.operational_status,
             "location_scope": self.location_scope,
-            "daily_capacity": self.daily_capacity,
-            "current_load": self.current_load,
-            "max_concurrent_operations": self.max_concurrent_operations,
+            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
+            "current_load": self.current_load or 0,
+            "max_concurrent_operations": self.max_concurrent_operations or 1,
             "services_offered": self.services_offered,
             "operating_hours": self.operating_hours,
             "special_hours": self.special_hours,
             "contact_person": self.contact_person,
             "phone_number": self.phone_number,
             "fax_number": self.fax_number,
-            "email": self.email,
+            "email": self.email_address,  # Map email_address -> email
             "facility_description": self.facility_description,
             "accessibility_features": self.accessibility_features,
             "parking_availability": self.parking_availability,
             "public_transport_access": self.public_transport_access,
             "operational_notes": self.operational_notes,
             "public_instructions": self.public_instructions,
-            "is_active": self.is_active,
-            "is_public": self.is_public,
-            "requires_appointment": self.requires_appointment,
+            "is_active": self.is_active if self.is_active is not None else True,
+            "is_public": self.is_public if self.is_public is not None else True,
+            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
         }
         return LocationBase(**flat_data)
 
