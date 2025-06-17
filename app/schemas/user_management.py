@@ -356,16 +356,16 @@ class UserProfileResponse(BaseModel):
             
             personal_details=PersonalDetailsBase(
                 id_type=IDType(user.id_type) if user.id_type else IDType.SA_ID,
-                id_number=user.id_number or "",
-                full_name=user.full_name or user.full_display_name,
-                email=user.email,
-                phone_number=user.phone_number or "",
-                alternative_phone=user.alternative_phone or ""
+                id_number=user.id_number or "0000000000000",  # Default ID number for missing data
+                full_name=user.full_name or user.full_display_name or "Unknown User",
+                email=user.email or "unknown@example.com",
+                phone_number=user.phone_number if user.phone_number else None,
+                alternative_phone=user.alternative_phone if user.alternative_phone else None
             ),
             
             geographic_assignment=GeographicAssignmentBase(
-                country_code=user.country_code,
-                province_code=user.province_code or "",
+                country_code=user.country_code or "ZA",
+                province_code=user.province_code or "GP",  # Default to Gauteng if missing
                 region=user.region or ""
             ),
             
