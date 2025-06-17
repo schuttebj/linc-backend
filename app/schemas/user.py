@@ -176,7 +176,7 @@ class UserResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
-    full_name: str
+    full_name: Optional[str] = None
     display_name: Optional[str]
     phone_number: Optional[str]
     employee_id: Optional[str]
@@ -195,6 +195,15 @@ class UserResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     roles: List["RoleResponse"] = []
+    
+    @validator('full_name', pre=True, always=True)
+    def generate_full_name(cls, v, values):
+        """Generate full_name from first_name and last_name if not provided"""
+        if v is None:
+            first_name = values.get('first_name', '')
+            last_name = values.get('last_name', '')
+            return f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown User"
+        return v
     
     @validator('id', pre=True)
     def convert_uuid_to_str(cls, v):

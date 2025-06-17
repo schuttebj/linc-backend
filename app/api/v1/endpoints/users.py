@@ -62,7 +62,7 @@ async def create_user(
 async def list_users(
     page: int = Query(1, ge=1, description="Page number"),
     size: int = Query(20, ge=1, le=100, description="Page size"),
-    status: Optional[str] = Query(None, description="Filter by user status"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by user status"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     role: Optional[str] = Query(None, description="Filter by role name"),
     department: Optional[str] = Query(None, description="Filter by department"),
@@ -83,7 +83,7 @@ async def list_users(
         
         # Build filters
         filters = UserListFilter(
-            status=status,
+            status=status_filter,
             is_active=is_active,
             role=role,
             department=department,
