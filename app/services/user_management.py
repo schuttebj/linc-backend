@@ -1,7 +1,7 @@
 """
 User Management Service
 Business logic layer for comprehensive user management
-Implements requirements from Users_Locations.md
+Consolidated to use existing User model with extended functionality
 """
 
 from typing import List, Optional, Dict, Any, Tuple
@@ -16,7 +16,7 @@ from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter,
     UserSessionCreate, UserStatistics
 )
-from app.crud.user_profile import user_profile
+from app.crud.user_management import user_management
 from app.core.security import get_password_hash
 
 logger = structlog.get_logger()
@@ -34,7 +34,7 @@ class UserManagementService:
     """
     
     def __init__(self):
-        self.crud = user_profile
+        self.crud = user_management
     
     # ========================================
     # USER PROFILE MANAGEMENT
@@ -44,17 +44,17 @@ class UserManagementService:
         self,
         db: Session,
         user_data: UserProfileCreate,
-        created_by: UserProfile
-    ) -> UserProfile:
+        created_by: User
+    ) -> User:
         """
         Create user profile with comprehensive validation
         
         Business Rules Implemented:
-        - V-USER-001: User Group must be active and valid
-        - V-USER-002: Office must exist within selected User Group
-        - V-USER-003: User Name must be unique within User Group
-        - V-USER-004: Email must be valid and unique system-wide
-        - V-USER-005: ID Number must be valid for selected ID Type
+        - V06001: User Group must be active and valid
+        - V06002: Office must exist within selected User Group
+        - V06003: User Name must be unique within User Group
+        - V06004: Email must be valid and unique system-wide
+        - V06005: ID Number must be valid for selected ID Type
         """
         
         logger.info(
@@ -96,7 +96,7 @@ class UserManagementService:
         
         # Create the user profile
         try:
-            new_user = self.crud.create_user_profile(
+            new_user = self.crud.create_user(
                 db=db,
                 user_data=user_data,
                 created_by=created_by.username
@@ -127,12 +127,12 @@ class UserManagementService:
         self,
         db: Session,
         user_id: str,
-        current_user: UserProfile,
+        current_user: User,
         load_relationships: bool = True
-    ) -> Optional[UserProfile]:
+    ) -> Optional[User]:
         """Get user profile with permission validation"""
         
-        user = self.crud.get_user_profile(
+        user = self.crud.get_user(
             db=db,
             user_id=user_id,
             load_relationships=load_relationships
@@ -161,14 +161,14 @@ class UserManagementService:
         filters: UserListFilter,
         page: int,
         size: int,
-        current_user: UserProfile
-    ) -> Tuple[List[UserProfile], int]:
+        current_user: User
+    ) -> Tuple[List[User], int]:
         """List user profiles with permission-based filtering"""
         
         # Apply permission-based filtering to the filters
         filtered_filters = self._apply_permission_filters(filters, current_user)
         
-        return self.crud.list_user_profiles(
+        return self.crud.list_users(
             db=db,
             filters=filtered_filters,
             page=page,
@@ -180,8 +180,8 @@ class UserManagementService:
         db: Session,
         user_id: str,
         user_data: UserProfileUpdate,
-        current_user: UserProfile
-    ) -> UserProfile:
+        current_user: User
+    ) -> User:
         """Update user profile with permission validation"""
         
         # Get existing user
@@ -200,9 +200,14 @@ class UserManagementService:
             )
         
         # Perform update
-        # Implementation would call CRUD update method
+        updated_user = self.crud.update_user(
+            db=db,
+            user_id=user_id,
+            user_data=user_data,
+            updated_by=current_user.username
+        )
         
-        return existing_user
+        return updated_user
     
     # ========================================
     # SESSION MANAGEMENT
@@ -213,7 +218,7 @@ class UserManagementService:
         db: Session,
         user_id: str,
         session_data: UserSessionCreate,
-        current_user: UserProfile
+        current_user: User
     ) -> UserSession:
         """
         Create user session with validation
@@ -247,26 +252,30 @@ class UserManagementService:
             )
         
         # Create session
-        # Implementation would call CRUD session creation
+        new_session = UserSession(
+            user_id=target_user.id,
+            user_group_code=session_data.user_group_code,
+            user_number=session_data.user_number,
+            workstation_id=session_data.workstation_id,
+            session_type=session_data.session_type,
+            ip_address=session_data.ip_address,
+            user_agent=session_data.user_agent
+        )
         
-        return None  # Placeholder
-    
-    # ========================================
-    # STATISTICS AND REPORTING
-    # ========================================
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+        
+        return new_session
     
     def get_user_statistics(
         self,
         db: Session,
-        current_user: UserProfile
+        current_user: User
     ) -> UserStatistics:
-        """Get user statistics with permission filtering"""
+        """Get user management statistics"""
         
-        # Get statistics filtered by user's permissions
-        return self.crud.get_user_statistics(
-            db=db,
-            current_user=current_user
-        )
+        return self.crud.get_user_statistics(db=db)
     
     # ========================================
     # VALIDATION METHODS
@@ -280,84 +289,92 @@ class UserManagementService:
         """
         Comprehensive user creation validation
         
-        Business Rules:
-        - V-USER-001: User Group must be active and valid
-        - V-USER-002: Office must exist within selected User Group
-        - V-USER-003: User Name must be unique within User Group
-        - V-USER-004: Email must be valid and unique system-wide
-        - V-USER-005: ID Number must be valid for selected ID Type
+        Implements business rules:
+        - V06001: User Group must be active and valid
+        - V06002: Office must exist within selected User Group
+        - V06003: User Name must be unique within User Group
+        - V06004: Email must be valid and unique system-wide
+        - V06005: ID Number must be valid for selected ID Type
         """
         
         validation_result = {
             'is_valid': True,
             'validation_errors': [],
-            'validation_warnings': [],
-            'business_rule_violations': []
+            'validation_warnings': []
         }
         
-        # V06001: User Group validation
+        # V06001: Validate User Group
         user_group = db.query(UserGroup).filter(
-            UserGroup.user_group_code == user_data.user_group_code
+            UserGroup.user_group_code == user_data.user_group_code,
+            UserGroup.is_active == True
         ).first()
         
         if not user_group:
-            validation_result['validation_errors'].append("User Group does not exist")
-        elif not user_group.is_active:
-            validation_result['validation_errors'].append("User Group is not active")
-        
-        # V06002: Office validation
-        if user_group:
-            office_exists = any(
-                office.office_code == user_data.office_code
-                for office in user_group.offices
+            validation_result['is_valid'] = False
+            validation_result['validation_errors'].append(
+                "V06001: User Group must be active and valid"
             )
-            if not office_exists:
+        
+        # V06002: Validate Office within User Group
+        if user_group:
+            office = db.query(Office).filter(
+                Office.office_code == user_data.office_code,
+                Office.user_group_id == user_group.id,
+                Office.is_active == True
+            ).first()
+            
+            if not office:
+                validation_result['is_valid'] = False
                 validation_result['validation_errors'].append(
-                    f"Office '{user_data.office_code}' does not exist in User Group '{user_data.user_group_code}'"
+                    "V06002: Office must exist within selected User Group"
                 )
         
-        # V06003: User Name uniqueness within User Group
+        # V06003: Validate User Name uniqueness within User Group
         existing_user_name = db.query(User).filter(
-            User.user_group_code == user_data.user_group_code,
-            User.user_name == user_data.user_name
+            User.user_name == user_data.user_name,
+            User.user_group_code == user_data.user_group_code
         ).first()
         
         if existing_user_name:
+            validation_result['is_valid'] = False
             validation_result['validation_errors'].append(
-                f"User Name '{user_data.user_name}' already exists in User Group '{user_data.user_group_code}'"
+                "V06003: User Name must be unique within User Group"
             )
         
-        # V06004: Email uniqueness system-wide
+        # V06004: Validate Email uniqueness system-wide
         existing_email = db.query(User).filter(
             User.email == user_data.personal_details.email
         ).first()
         
         if existing_email:
+            validation_result['is_valid'] = False
             validation_result['validation_errors'].append(
-                f"Email '{user_data.personal_details.email}' is already in use"
+                "V06004: Email must be valid and unique system-wide"
             )
         
-        # V06005: ID Number validation
+        # V06005: Validate ID Number for ID Type
         id_validation = self._validate_id_number(
             user_data.personal_details.id_type,
             user_data.personal_details.id_number
         )
         
         if not id_validation['is_valid']:
+            validation_result['is_valid'] = False
+            validation_result['validation_errors'].append(
+                "V06005: ID Number must be valid for selected ID Type"
+            )
             validation_result['validation_errors'].extend(id_validation['errors'])
         
-        # Username uniqueness (system-wide)
-        existing_username = db.query(UserProfile).filter(
-            UserProfile.username == user_data.username
+        # Username uniqueness
+        existing_username = db.query(User).filter(
+            User.username == user_data.username
         ).first()
         
         if existing_username:
+            validation_result['is_valid'] = False
             validation_result['validation_errors'].append(
-                f"Username '{user_data.username}' is already in use"
+                "Username already exists"
             )
-        
-        # Set overall validity
-        validation_result['is_valid'] = len(validation_result['validation_errors']) == 0
         
         return validation_result
     
@@ -367,12 +384,9 @@ class UserManagementService:
         id_number: str
     ) -> Dict[str, Any]:
         """
-        ID Number validation based on type
+        Validate ID number based on type
         
-        Validation Rules:
-        - V00017: RSA ID (02) must be numeric
-        - V00018: ID types 01,02,04,97 must be 13 characters
-        - V00019: Valid check digit for ID types 01,02,04
+        V06005: ID Number must be valid for selected ID Type
         """
         
         validation_result = {
@@ -380,171 +394,166 @@ class UserManagementService:
             'errors': []
         }
         
-        # V00018: Length validation
-        if id_type in [IDType.TRN, IDType.SA_ID, IDType.PASSPORT, IDType.OTHER]:
-            if len(id_number) != 13:
-                validation_result['errors'].append(
-                    f"ID type {id_type.value} must be exactly 13 characters long"
-                )
+        if id_type == IDType.SA_ID:
+            # South African ID validation (13 digits)
+            if not id_number.isdigit() or len(id_number) != 13:
+                validation_result['is_valid'] = False
+                validation_result['errors'].append("SA ID must be 13 digits")
+            elif not self._validate_sa_id_check_digit(id_number):
+                validation_result['is_valid'] = False
+                validation_result['errors'].append("Invalid SA ID check digit")
         
-        # V00017: Numeric validation for SA ID and TRN
-        if id_type in [IDType.SA_ID, IDType.TRN]:
-            if not id_number.isdigit():
-                validation_result['errors'].append(
-                    f"ID type {id_type.value} must contain only numeric characters"
-                )
+        elif id_type == IDType.PASSPORT:
+            # Passport validation (various formats)
+            if len(id_number) < 4 or len(id_number) > 20:
+                validation_result['is_valid'] = False
+                validation_result['errors'].append("Passport number must be 4-20 characters")
         
-        # V00019: Check digit validation (simplified implementation)
-        if id_type == IDType.SA_ID and len(id_number) == 13 and id_number.isdigit():
-            # Implement South African ID number check digit validation
-            # This is a simplified version - real implementation would use Luhn algorithm
-            if not self._validate_sa_id_check_digit(id_number):
-                validation_result['errors'].append("Invalid South African ID number check digit")
-        
-        validation_result['is_valid'] = len(validation_result['errors']) == 0
+        elif id_type == IDType.FOREIGN_ID:
+            # Foreign ID validation (flexible)
+            if len(id_number) < 5 or len(id_number) > 25:
+                validation_result['is_valid'] = False
+                validation_result['errors'].append("Foreign ID must be 5-25 characters")
         
         return validation_result
     
     def _validate_sa_id_check_digit(self, id_number: str) -> bool:
-        """
-        Validate South African ID number check digit using Luhn algorithm
-        Simplified implementation
-        """
-        # Simplified validation - real implementation would be more complex
-        return True
-    
-    # ========================================
-    # PERMISSION METHODS
-    # ========================================
+        """Validate South African ID check digit using Luhn algorithm"""
+        if len(id_number) != 13 or not id_number.isdigit():
+            return False
+        
+        # Luhn algorithm for SA ID validation
+        total = 0
+        for i in range(12):
+            digit = int(id_number[i])
+            if i % 2 == 1:
+                digit *= 2
+                if digit > 9:
+                    digit = digit // 10 + digit % 10
+            total += digit
+        
+        check_digit = (10 - (total % 10)) % 10
+        return check_digit == int(id_number[12])
     
     def _can_create_user(
         self,
-        creator: UserProfile,
+        creator: User,
         user_data: UserProfileCreate
     ) -> bool:
-        """Check if user can create another user with specified attributes"""
+        """Check if creator can create user in specified location/group"""
         
-        # Superusers can create any user
+        # Superusers can create anywhere
         if creator.is_superuser:
             return True
         
-        # Check province access
-        target_province = user_data.geographic_assignment.province_code
-        if not creator.can_access_province(target_province):
-            return False
+        # Provincial admins can create within their province
+        if creator.authority_level == "PROVINCIAL":
+            return creator.province_code == user_data.geographic_assignment.province_code
         
-        # Check user group access
-        if creator.user_group:
-            if not creator.user_group.can_manage_user_group(user_data.user_group_code):
-                return False
+        # Local admins can create within their user group
+        if creator.authority_level == "LOCAL":
+            return creator.user_group_code == user_data.user_group_code
         
-        return True
+        # Regular users cannot create other users
+        return False
     
     def _can_access_user_data(
         self,
-        accessor: UserProfile,
-        target_user: UserProfile
+        accessor: User,
+        target_user: User
     ) -> bool:
-        """Check if user can access another user's data"""
+        """Check if accessor can view target user's data"""
         
-        # Superusers can access any user
-        if accessor.is_superuser:
-            return True
-        
-        # Users can access their own data
+        # Users can always access their own data
         if accessor.id == target_user.id:
             return True
         
-        # Check province access
-        if not accessor.can_access_province(target_user.province_code):
-            return False
+        # Superusers can access all data
+        if accessor.is_superuser:
+            return True
         
-        # Check user group hierarchy
-        if accessor.user_group:
-            return accessor.user_group.can_manage_user_group(target_user.user_group_code)
+        # Provincial admins can access users in their province
+        if accessor.authority_level == "PROVINCIAL":
+            return accessor.province_code == target_user.province_code
         
+        # Local admins can access users in their user group
+        if accessor.authority_level == "LOCAL":
+            return accessor.user_group_code == target_user.user_group_code
+        
+        # Regular users cannot access other users' data
         return False
     
     def _can_update_user(
         self,
-        updater: UserProfile,
-        target_user: UserProfile,
+        updater: User,
+        target_user: User,
         update_data: UserProfileUpdate
     ) -> bool:
-        """Check if user can update another user with specified changes"""
+        """Check if updater can modify target user with given changes"""
         
-        # Basic access check
-        if not self._can_access_user_data(updater, target_user):
-            return False
+        # Users can update their own basic information
+        if updater.id == target_user.id:
+            # Check if trying to update restricted fields
+            restricted_fields = ['user_group_code', 'province_code', 'status', 'role_ids']
+            for field in restricted_fields:
+                if hasattr(update_data, field) and getattr(update_data, field) is not None:
+                    return False
+            return True
         
-        # Check for sensitive field updates
-        sensitive_fields = ['user_group_code', 'province_code', 'status', 'role_ids']
-        
-        for field in sensitive_fields:
-            if getattr(update_data, field, None) is not None:
-                if not updater.is_superuser:
-                    # Additional permission checks for sensitive updates
-                    if field in ['status', 'role_ids']:
-                        if not updater.has_permission('user_admin'):
-                            return False
-        
-        return True
+        # Admin users can update others
+        return self._can_access_user_data(updater, target_user)
     
-    def _can_user_login(self, user: UserProfile) -> bool:
-        """Check if user can create a login session"""
-        
-        # User must be active
-        if not user.is_active:
-            return False
-        
-        # User status must allow login
-        if user.status not in [UserStatus.ACTIVE.value]:
-            return False
-        
-        # Account must not be locked
-        if user.is_locked:
-            return False
-        
-        return True
+    def _can_user_login(self, user: User) -> bool:
+        """Check if user can login"""
+        return (
+            user.is_active and 
+            user.status in [UserStatus.ACTIVE, UserStatus.PENDING_ACTIVATION] and
+            not user.is_locked
+        )
     
     def _validate_workstation_access(
         self,
-        user: UserProfile,
+        user: User,
         workstation_id: str
     ) -> bool:
         """
-        Validate user access to workstation (V00468 equivalent)
+        Validate user has access to workstation
         
-        In the context of LINC, this would check:
-        - User's location assignments
-        - Workstation location mapping
-        - Infrastructure permissions
+        V00468: Payments must exist for specified User and Workstation
         """
         
-        # For now, basic validation
-        # Real implementation would check location assignments and infrastructure access
+        # TODO: Implement workstation validation logic
+        # This would check:
+        # - User has permission to use workstation
+        # - Workstation is active and available
+        # - Any licensing/payment requirements
         
-        return True
+        return True  # Placeholder - always allow for now
     
     def _apply_permission_filters(
         self,
         filters: UserListFilter,
-        current_user: UserProfile
+        current_user: User
     ) -> UserListFilter:
-        """Apply permission-based filters to user list request"""
+        """Apply permission-based filtering to user list filters"""
         
-        # If not superuser, apply geographic restrictions
-        if not current_user.is_superuser:
-            # Force province filter for provincial users
-            if current_user.user_group and current_user.user_group.is_provincial_help_desk:
-                filters.province_code = current_user.province_code
-            
-            # Force user group filter for local users
-            elif current_user.user_group and not current_user.user_group.is_national_help_desk:
-                filters.user_group_code = current_user.user_group_code
+        # Superusers see all users
+        if current_user.is_superuser:
+            return filters
+        
+        # Provincial admins see users in their province
+        if current_user.authority_level == "PROVINCIAL":
+            filters.province_code = current_user.province_code
+        
+        # Local admins see users in their user group
+        elif current_user.authority_level == "LOCAL":
+            filters.user_group_code = current_user.user_group_code
+        
+        # Regular users see only themselves
+        else:
+            filters.search = current_user.username
         
         return filters
 
-
-# Create service instance
-user_management_service = UserManagementService() 
+# Create singleton instance
+user_service = UserManagementService() 

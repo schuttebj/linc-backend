@@ -344,58 +344,58 @@ class UserProfileResponse(BaseModel):
         from_attributes = True
     
     @classmethod
-    def from_user_profile(cls, user_profile):
-        """Create UserProfileResponse from UserProfile model"""
+    def from_user(cls, user):
+        """Create UserProfileResponse from User model"""
         return cls(
-            id=str(user_profile.id),
-            username=user_profile.username,
-            user_group_code=user_profile.user_group_code,
-            office_code=user_profile.office_code,
-            user_name=user_profile.user_name,
-            user_type_code=user_profile.user_type_code,
+            id=str(user.id),
+            username=user.username,
+            user_group_code=user.user_group_code or "",
+            office_code=user.office_code or "",
+            user_name=user.user_name or user.full_display_name,
+            user_type_code=user.user_type_code,
             
             personal_details=PersonalDetailsBase(
-                id_type=IDType(user_profile.id_type),
-                id_number=user_profile.id_number,
-                full_name=user_profile.full_name,
-                email=user_profile.email,
-                phone_number=user_profile.phone_number,
-                alternative_phone=user_profile.alternative_phone
+                id_type=IDType(user.id_type) if user.id_type else IDType.SA_ID,
+                id_number=user.id_number or "",
+                full_name=user.full_name or user.full_display_name,
+                email=user.email,
+                phone_number=user.phone_number or "",
+                alternative_phone=user.alternative_phone or ""
             ),
             
             geographic_assignment=GeographicAssignmentBase(
-                country_code=user_profile.country_code,
-                province_code=user_profile.province_code,
-                region=user_profile.region
+                country_code=user.country_code,
+                province_code=user.province_code or "",
+                region=user.region or ""
             ),
             
-            employee_id=user_profile.employee_id,
-            department=user_profile.department,
-            job_title=user_profile.job_title,
-            infrastructure_number=user_profile.infrastructure_number,
+            employee_id=user.employee_id,
+            department=user.department,
+            job_title=user.job_title,
+            infrastructure_number=user.infrastructure_number,
             
-            status=UserStatus(user_profile.status),
-            is_active=user_profile.is_active,
-            is_superuser=user_profile.is_superuser,
-            is_verified=user_profile.is_verified,
+            status=UserStatus(user.status),
+            is_active=user.is_active,
+            is_superuser=user.is_superuser,
+            is_verified=user.is_verified,
             
-            authority_level=AuthorityLevel.PERSONAL,  # Default for now
+            authority_level=AuthorityLevel(user.authority_level),
             
-            user_group={"id": str(user_profile.user_group_id), "name": user_profile.user_group_code} if user_profile.user_group_id else None,
-            office={"code": user_profile.office_code},
+            user_group={"id": str(user.user_group_id), "name": user.user_group_code} if user.user_group_id else None,
+            office={"code": user.office_code} if user.office_code else None,
             
-            roles=[],  # TODO: Implement when roles relationship is set up
-            permissions=[],  # TODO: Implement when permissions are set up
-            location_assignments=[],  # TODO: Implement when location assignments are set up
+            roles=[{"id": str(role.id), "name": role.name} for role in user.roles] if user.roles else [],
+            permissions=[perm.name for role in user.roles for perm in role.permissions] if user.roles else [],
+            location_assignments=[{"id": str(loc.id), "name": loc.location_name} for loc in user.get_accessible_locations()] if hasattr(user, 'get_accessible_locations') else [],
             
-            language=user_profile.language,
-            timezone=user_profile.timezone,
-            date_format=user_profile.date_format,
+            language=user.language,
+            timezone=user.timezone,
+            date_format=user.date_format,
             
-            created_at=user_profile.created_at,
-            updated_at=user_profile.updated_at,
-            created_by=user_profile.created_by,
-            last_login_at=user_profile.last_login_at
+            created_at=user.created_at,
+            updated_at=user.updated_at,
+            created_by=user.created_by,
+            last_login_at=user.last_login_at
         )
 
 # ========================================

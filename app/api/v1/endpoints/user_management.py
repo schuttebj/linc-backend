@@ -1,7 +1,7 @@
 """
 User Management API Endpoints
-Comprehensive user management endpoints implementing Users_Locations.md specifications
-Includes user profiles, sessions, and administration marks management
+Comprehensive user management API with role-based access control
+Consolidated to use existing User model with extended functionality
 """
 
 from typing import List, Optional
@@ -17,6 +17,7 @@ from app.crud.user_management import user_management
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserProfileResponse,
     UserListFilter, UserListResponse, UserStatistics,
+    UserValidationResult, PermissionCheckResult,
     UserSessionCreate, UserSessionResponse
 )
 from app.models.user import User
@@ -33,7 +34,7 @@ def create_user_profile(
     *,
     db: Session = Depends(get_db),
     user_data: UserProfileCreate,
-    current_user: UserProfile = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user_create"))
 ):
     """
     Create new user profile.
@@ -42,14 +43,14 @@ def create_user_profile(
     
     Implements business rules:
     - V06001: User Group must be active and valid
-- V06002: Office must exist within selected User Group
-- V06003: User Name must be unique within User Group
-- V06004: Email must be valid and unique system-wide
-- V06005: ID Number must be valid for selected ID Type
+    - V06002: Office must exist within selected User Group
+    - V06003: User Name must be unique within User Group
+    - V06004: Email must be valid and unique system-wide
+    - V06005: ID Number must be valid for selected ID Type
     """
     try:
         logger.info(
-            "Creating new user profile",
+            "Creating user profile",
             username=user_data.username,
             user_group=user_data.user_group_code,
             created_by=current_user.username
@@ -68,7 +69,7 @@ def create_user_profile(
             username=new_user.username
         )
         
-        return UserProfileResponse.from_user_profile(new_user)
+        return UserProfileResponse.from_user(new_user)
         
     except HTTPException:
         raise
@@ -95,17 +96,15 @@ def list_user_profiles(
     user_group_code: Optional[str] = Query(None, description="Filter by user group"),
     search: Optional[str] = Query(None, description="Search users"),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user_view"))
 ):
     """
     List user profiles with filtering and pagination.
     
     Requires user_view permission.
     
-    Data filtering based on current user's permissions:
-    - Provincial users can only see users in their province
-    - Local users can only see users in their user group
-    - National users can see all users
+    Supports filtering by status, province, user group, and text search.
+    Results are filtered based on user's permission level.
     """
     try:
         logger.info(
@@ -134,16 +133,21 @@ def list_user_profiles(
         )
         
         # Convert to response format
-        user_responses = [UserProfileResponse.from_user_profile(user) for user in users]
+        user_responses = [UserProfileResponse.from_user(user) for user in users]
+        
+        # Build pagination info
+        pages = (total + size - 1) // size
+        has_next = page < pages
+        has_previous = page > 1
         
         return UserListResponse(
             users=user_responses,
             total=total,
             page=page,
             size=size,
-            pages=(total + size - 1) // size,
-            has_next=page * size < total,
-            has_previous=page > 1
+            pages=pages,
+            has_next=has_next,
+            has_previous=has_previous
         )
         
     except HTTPException:
@@ -163,12 +167,14 @@ def list_user_profiles(
 def get_user_profile_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user_view"))
 ):
     """
     Get user profile by ID.
     
     Requires user_view permission.
+    
+    Returns complete user profile with relationships.
     """
     try:
         logger.info(
@@ -184,10 +190,13 @@ def get_user_profile_by_id(
                 detail="User profile not found"
             )
         
-        # Check if current user can access this user's data
-        # (Implementation would include permission filtering logic)
+        logger.info(
+            "User profile retrieved successfully",
+            user_id=user_id,
+            username=user.username
+        )
         
-        return UserProfileResponse.from_user_profile(user)
+        return UserProfileResponse.from_user(user)
         
     except HTTPException:
         raise
@@ -208,17 +217,14 @@ def update_user_profile(
     user_id: str,
     user_data: UserProfileUpdate,
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_edit"))
+    current_user: User = Depends(require_permission("user_edit"))
 ):
     """
     Update user profile.
     
     Requires user_edit permission.
     
-    Certain fields require elevated permissions:
-    - User group assignment (requires admin permissions)
-    - Province assignment (requires provincial/national admin)
-    - Status changes (requires admin permissions)
+    Supports partial updates with validation.
     """
     try:
         logger.info(
@@ -227,23 +233,20 @@ def update_user_profile(
             updated_by=current_user.username
         )
         
-        # Get existing user
-        existing_user = user_profile.get_user_profile(db=db, user_id=user_id)
-        if not existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User profile not found"
-            )
-        
         # Update user profile
-        # (Implementation would include update logic)
+        updated_user = user_management.update_user(
+            db=db,
+            user_id=user_id,
+            user_data=user_data,
+            updated_by=current_user.username
+        )
         
         logger.info(
             "User profile updated successfully",
             user_id=user_id
         )
         
-        return UserProfileResponse.from_orm(existing_user)
+        return UserProfileResponse.from_user(updated_user)
         
     except HTTPException:
         raise
@@ -264,7 +267,7 @@ def delete_user_profile(
     user_id: str,
     soft_delete: bool = Query(True, description="Perform soft delete"),
     db: Session = Depends(get_db),
-    current_user: UserProfile = Depends(require_permission("user_delete"))
+    current_user: User = Depends(require_permission("user_delete"))
 ):
     """
     Delete user profile.
@@ -272,7 +275,6 @@ def delete_user_profile(
     Requires user_delete permission.
     
     By default performs soft delete (sets is_active=False).
-    Hard delete requires additional confirmation.
     """
     try:
         logger.info(
@@ -283,7 +285,7 @@ def delete_user_profile(
         )
         
         # Get existing user
-        existing_user = user_profile.get_user_profile(db=db, user_id=user_id)
+        existing_user = user_management.get_user(db=db, user_id=user_id)
         if not existing_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -297,8 +299,10 @@ def delete_user_profile(
                 detail="Cannot delete your own user profile"
             )
         
-        # Delete user profile
-        # (Implementation would include delete logic)
+        # Perform soft delete
+        existing_user.is_active = False
+        db.add(existing_user)
+        db.commit()
         
         logger.info(
             "User profile deleted successfully",
@@ -306,7 +310,7 @@ def delete_user_profile(
             soft_delete=soft_delete
         )
         
-        return UserProfileResponse.from_orm(existing_user)
+        return UserProfileResponse.from_user(existing_user)
         
     except HTTPException:
         raise
