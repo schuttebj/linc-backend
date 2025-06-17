@@ -488,6 +488,85 @@ class LocationResponse(BaseModel):
     capacity_utilization: float
     is_operational: bool
     
+    @validator('is_operational', pre=True)
+    def compute_is_operational(cls, v, values):
+        """Compute is_operational from the model method"""
+        if hasattr(v, '__call__'):  # If it's a method
+            return v()  # Call the method
+        return v  # If it's already a boolean value
+    
+    @validator('full_address', pre=True)
+    def compute_full_address(cls, v, values):
+        """Compute full_address from the model property"""
+        if hasattr(v, '__call__') or hasattr(v, '__get__'):  # If it's a method or property
+            try:
+                return str(v)  # Convert to string
+            except:
+                # Fallback: build address from components
+                parts = []
+                if 'address_line_1' in values:
+                    parts.append(values['address_line_1'])
+                if 'address_line_2' in values and values['address_line_2']:
+                    parts.append(values['address_line_2'])
+                if 'city' in values:
+                    parts.append(values['city'])
+                if 'postal_code' in values and values['postal_code']:
+                    parts.append(values['postal_code'])
+                return ", ".join(parts)
+        return v
+    
+    @validator('is_dltc', pre=True)
+    def compute_is_dltc(cls, v, values):
+        """Compute is_dltc from infrastructure type"""
+        if hasattr(v, '__call__') or hasattr(v, '__get__'):
+            try:
+                return bool(v)
+            except:
+                # Fallback: compute from infrastructure_type
+                infrastructure_type = values.get('infrastructure_type', '')
+                return infrastructure_type in ['10', '11']  # FIXED_DLTC or MOBILE_DLTC
+        return v
+    
+    @validator('is_printing_facility', pre=True)
+    def compute_is_printing_facility(cls, v, values):
+        """Compute is_printing_facility from infrastructure type"""
+        if hasattr(v, '__call__') or hasattr(v, '__get__'):
+            try:
+                return bool(v)
+            except:
+                # Fallback: compute from infrastructure_type
+                infrastructure_type = values.get('infrastructure_type', '')
+                return infrastructure_type in ['12', '13']  # PRINTING_CENTER or COMBINED_CENTER
+        return v
+    
+    @validator('available_capacity', pre=True)
+    def compute_available_capacity(cls, v, values):
+        """Compute available_capacity"""
+        if hasattr(v, '__call__') or hasattr(v, '__get__'):
+            try:
+                return int(v)
+            except:
+                # Fallback: compute from daily_capacity and current_load
+                daily_capacity = values.get('daily_capacity', 0) or 0
+                current_load = values.get('current_load', 0) or 0
+                return max(0, daily_capacity - current_load)
+        return v
+    
+    @validator('capacity_utilization', pre=True)
+    def compute_capacity_utilization(cls, v, values):
+        """Compute capacity_utilization percentage"""
+        if hasattr(v, '__call__') or hasattr(v, '__get__'):
+            try:
+                return float(v)
+            except:
+                # Fallback: compute from daily_capacity and current_load
+                daily_capacity = values.get('daily_capacity', 0) or 0
+                current_load = values.get('current_load', 0) or 0
+                if daily_capacity > 0:
+                    return (current_load / daily_capacity) * 100
+                return 0.0
+        return v
+    
     @validator('id', 'user_group_id', 'office_id', pre=True)
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
