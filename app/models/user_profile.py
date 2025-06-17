@@ -184,9 +184,10 @@ class UserProfile(BaseModel):
     # Relationships
     user_group = relationship("UserGroup", back_populates="users")
     user_sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
-    location_assignments = relationship("UserLocationAssignment", back_populates="user", cascade="all, delete-orphan")
-    audit_logs = relationship("UserAuditLog", back_populates="user")
-    roles = relationship("Role", secondary="user_roles", back_populates="users")
+    # Note: location_assignments relationship needs to be updated in UserLocationAssignment model
+    # to reference user_profiles table instead of users table
+    # audit_logs = relationship("UserAuditLog", back_populates="user")
+    # roles = relationship("Role", secondary="user_roles", back_populates="users")
     
     def __repr__(self):
         return f"<UserProfile(id={self.id}, username='{self.username}', user_group='{self.user_group_code}', status='{self.status}')>"
@@ -232,16 +233,19 @@ class UserProfile(BaseModel):
         if self.is_superuser:
             return True
         
-        for role in self.roles:
-            if role.is_active:
-                for permission in role.permissions:
-                    if permission.is_active and permission.name == permission_name:
-                        return True
+        # TODO: Implement role-based permissions when roles relationship is set up
+        # for role in self.roles:
+        #     if role.is_active:
+        #         for permission in role.permissions:
+        #             if permission.is_active and permission.name == permission_name:
+        #                 return True
         return False
     
     def has_role(self, role_name: str) -> bool:
         """Check if user has specific role"""
-        return any(role.name == role_name and role.is_active for role in self.roles)
+        # TODO: Implement role checking when roles relationship is set up
+        # return any(role.name == role_name and role.is_active for role in self.roles)
+        return False
     
     def can_access_province(self, province_code: str) -> bool:
         """Check if user can access a specific province"""

@@ -113,9 +113,9 @@ class CRUDUserProfile(CRUDBase[UserProfile, UserProfileCreate, UserProfileUpdate
         db.add(user_profile)
         db.flush()
         
-        # Assign roles
-        if user_data.role_ids:
-            self._assign_roles(db, user_profile, user_data.role_ids)
+        # TODO: Assign roles when roles relationship is properly set up
+        # if user_data.role_ids:
+        #     self._assign_roles(db, user_profile, user_data.role_ids)
         
         db.commit()
         db.refresh(user_profile)
@@ -133,9 +133,10 @@ class CRUDUserProfile(CRUDBase[UserProfile, UserProfileCreate, UserProfileUpdate
         
         if load_relationships:
             query = query.options(
-                selectinload(UserProfile.user_group),
-                selectinload(UserProfile.roles),
-                selectinload(UserProfile.location_assignments)
+                selectinload(UserProfile.user_group)
+                # TODO: Add other relationships when they are properly set up
+                # selectinload(UserProfile.roles),
+                # selectinload(UserProfile.location_assignments)
             )
         
         return query.first()
@@ -159,8 +160,9 @@ class CRUDUserProfile(CRUDBase[UserProfile, UserProfileCreate, UserProfileUpdate
         """List user profiles with filtering and pagination"""
         
         query = db.query(UserProfile).options(
-            selectinload(UserProfile.user_group),
-            selectinload(UserProfile.roles)
+            selectinload(UserProfile.user_group)
+            # TODO: Add roles relationship when properly set up
+            # selectinload(UserProfile.roles)
         )
         
         # Apply search filters
@@ -202,13 +204,15 @@ class CRUDUserProfile(CRUDBase[UserProfile, UserProfileCreate, UserProfileUpdate
         role_ids: List[str]
     ):
         """Assign roles to user profile"""
-        roles = db.query(Role).filter(
-            Role.id.in_(role_ids),
-            Role.is_active == True
-        ).all()
-        
-        for role in roles:
-            user_profile.roles.append(role)
+        # TODO: Implement role assignment when roles relationship is set up
+        # roles = db.query(Role).filter(
+        #     Role.id.in_(role_ids),
+        #     Role.is_active == True
+        # ).all()
+        # 
+        # for role in roles:
+        #     user_profile.roles.append(role)
+        pass
     
     def _apply_search_filters(self, query, filters: UserListFilter):
         """Apply search filters to query"""

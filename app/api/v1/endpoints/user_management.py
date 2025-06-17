@@ -68,7 +68,7 @@ def create_user_profile(
             username=new_user.username
         )
         
-        return UserProfileResponse.from_orm(new_user)
+        return UserProfileResponse.from_user_profile(new_user)
         
     except HTTPException:
         raise
@@ -134,7 +134,7 @@ def list_user_profiles(
         )
         
         # Convert to response format
-        user_responses = [UserProfileResponse.from_orm(user) for user in users]
+        user_responses = [UserProfileResponse.from_user_profile(user) for user in users]
         
         return UserListResponse(
             users=user_responses,
@@ -187,7 +187,7 @@ def get_user_profile_by_id(
         # Check if current user can access this user's data
         # (Implementation would include permission filtering logic)
         
-        return UserProfileResponse.from_orm(user)
+        return UserProfileResponse.from_user_profile(user)
         
     except HTTPException:
         raise

@@ -305,8 +305,98 @@ class UserProfileResponse(BaseModel):
             return str(v)
         return v
     
+    @validator('personal_details', pre=True)
+    def build_personal_details(cls, v, values):
+        """Build personal details from flat UserProfile model"""
+        if isinstance(v, dict):
+            return v
+        
+        # If v is a UserProfile model instance, build the nested structure
+        user_profile = values.get('__root__') or v
+        if hasattr(user_profile, 'id_type'):
+            return PersonalDetailsBase(
+                id_type=user_profile.id_type,
+                id_number=user_profile.id_number,
+                full_name=user_profile.full_name,
+                email=user_profile.email,
+                phone_number=user_profile.phone_number,
+                alternative_phone=user_profile.alternative_phone
+            )
+        return v
+    
+    @validator('geographic_assignment', pre=True)
+    def build_geographic_assignment(cls, v, values):
+        """Build geographic assignment from flat UserProfile model"""
+        if isinstance(v, dict):
+            return v
+            
+        # If v is a UserProfile model instance, build the nested structure
+        user_profile = values.get('__root__') or v
+        if hasattr(user_profile, 'country_code'):
+            return GeographicAssignmentBase(
+                country_code=user_profile.country_code,
+                province_code=user_profile.province_code,
+                region=user_profile.region
+            )
+        return v
+    
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_user_profile(cls, user_profile):
+        """Create UserProfileResponse from UserProfile model"""
+        return cls(
+            id=str(user_profile.id),
+            username=user_profile.username,
+            user_group_code=user_profile.user_group_code,
+            office_code=user_profile.office_code,
+            user_name=user_profile.user_name,
+            user_type_code=user_profile.user_type_code,
+            
+            personal_details=PersonalDetailsBase(
+                id_type=IDType(user_profile.id_type),
+                id_number=user_profile.id_number,
+                full_name=user_profile.full_name,
+                email=user_profile.email,
+                phone_number=user_profile.phone_number,
+                alternative_phone=user_profile.alternative_phone
+            ),
+            
+            geographic_assignment=GeographicAssignmentBase(
+                country_code=user_profile.country_code,
+                province_code=user_profile.province_code,
+                region=user_profile.region
+            ),
+            
+            employee_id=user_profile.employee_id,
+            department=user_profile.department,
+            job_title=user_profile.job_title,
+            infrastructure_number=user_profile.infrastructure_number,
+            
+            status=UserStatus(user_profile.status),
+            is_active=user_profile.is_active,
+            is_superuser=user_profile.is_superuser,
+            is_verified=user_profile.is_verified,
+            
+            authority_level=AuthorityLevel.PERSONAL,  # Default for now
+            
+            user_group={"id": str(user_profile.user_group_id), "name": user_profile.user_group_code} if user_profile.user_group_id else None,
+            office={"code": user_profile.office_code},
+            
+            roles=[],  # TODO: Implement when roles relationship is set up
+            permissions=[],  # TODO: Implement when permissions are set up
+            location_assignments=[],  # TODO: Implement when location assignments are set up
+            
+            language=user_profile.language,
+            timezone=user_profile.timezone,
+            date_format=user_profile.date_format,
+            
+            created_at=user_profile.created_at,
+            updated_at=user_profile.updated_at,
+            created_by=user_profile.created_by,
+            last_login_at=user_profile.last_login_at
+        )
 
 # ========================================
 # USER SESSION SCHEMAS

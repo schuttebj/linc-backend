@@ -12,6 +12,7 @@ from .license import (
     LicenseType
 )
 from .user import User, Role, Permission, UserAuditLog, UserStatus
+from .user_profile import UserProfile, UserSession
 from .audit import AuditLog, FileMetadata
 
 # Location Management Models (NEW)
@@ -38,6 +39,8 @@ __all__ = [
     "Permission", 
     "UserAuditLog",
     "UserStatus",
+    "UserProfile",
+    "UserSession",
     "AuditLog",
     "FileMetadata",
     # Location Management Models
