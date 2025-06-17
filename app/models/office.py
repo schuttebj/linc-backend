@@ -4,7 +4,7 @@ Implements the office management system within user groups
 Handles A-Z office codes for branch offices, mobile units, etc.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer, UniqueConstraint, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -84,8 +84,10 @@ class Office(BaseModel):
     locations = relationship("Location", back_populates="office", cascade="all, delete-orphan")
     user_assignments = relationship("UserLocationAssignment", back_populates="office")
     
-    # Unique constraint on user_group_id + office_code
+    # Table constraints as per development standards
     __table_args__ = (
+        UniqueConstraint('user_group_id', 'office_code', name='uq_office_user_group_code'),
+        CheckConstraint("office_code ~ '^[A-Z]$'", name='chk_office_code_format'),
         {'comment': 'Office management within user groups with A-Z codes'},
     )
     

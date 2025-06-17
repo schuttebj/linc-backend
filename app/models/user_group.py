@@ -4,7 +4,7 @@ Implements the 4-character user group authority system from eNaTIS documentation
 Represents authorities like DLTC, RA, Provincial Help Desk, etc.
 """
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -103,6 +103,13 @@ class UserGroup(BaseModel):
     users = relationship("User", back_populates="user_group")
     offices = relationship("Office", back_populates="user_group", cascade="all, delete-orphan")
     locations = relationship("Location", back_populates="user_group", cascade="all, delete-orphan")
+    
+    # Database constraints as per development standards
+    __table_args__ = (
+        CheckConstraint("user_group_code ~ '^[A-Z0-9]{4}$'", name='chk_user_group_code_format'),
+        CheckConstraint("province_code ~ '^[A-Z]{2}$'", name='chk_province_code_format'),
+        {'comment': 'User group authority management with 4-character codes'},
+    )
     
     def __repr__(self):
         return f"<UserGroup(code='{self.user_group_code}', name='{self.user_group_name}', type='{self.user_group_type}')>"
