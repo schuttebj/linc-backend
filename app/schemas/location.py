@@ -189,6 +189,17 @@ class UserGroupResponse(BaseModel):
     class Config:
         from_attributes = True
 
+# Address Schema (for nested address support)
+class AddressBase(BaseModel):
+    """Address schema for nested address support"""
+    address_line_1: str = Field(..., min_length=1, max_length=100, description="Address line 1")
+    address_line_2: Optional[str] = Field(None, max_length=100, description="Address line 2")
+    address_line_3: Optional[str] = Field(None, max_length=100, description="Address line 3")
+    city: str = Field(..., min_length=1, max_length=50, description="City")
+    province_code: str = Field(..., min_length=2, max_length=2, description="Province code")
+    postal_code: Optional[str] = Field(None, max_length=10, description="Postal code")
+    country_code: str = Field("ZA", min_length=2, max_length=2, description="Country code")
+
 # Office Schemas
 class OfficeBase(BaseModel):
     """Base office schema"""
@@ -300,8 +311,93 @@ class LocationBase(BaseModel):
     is_public: bool = Field(True, description="Public visibility")
     requires_appointment: bool = Field(False, description="Requires appointment")
 
+class LocationCreateNested(BaseModel):
+    """Location creation schema with nested address support"""
+    location_code: str = Field(..., min_length=1, max_length=20, description="Location identifier")
+    location_name: str = Field(..., min_length=1, max_length=200, description="Location name")
+    user_group_id: str = Field(..., description="Parent user group ID")
+    office_id: Optional[str] = Field(None, description="Parent office ID")
+    infrastructure_type: InfrastructureTypeEnum = Field(..., description="Infrastructure type")
+    
+    # Nested address object
+    address: AddressBase = Field(..., description="Address information")
+    
+    # Geographic coordinates
+    latitude: Optional[float] = Field(None, ge=-90, le=90, description="Latitude")
+    longitude: Optional[float] = Field(None, ge=-180, le=180, description="Longitude")
+    
+    # Operational configuration
+    operational_status: OperationalStatusEnum = Field(OperationalStatusEnum.OPERATIONAL, description="Operational status")
+    location_scope: LocationScopeEnum = Field(LocationScopeEnum.LOCAL, description="Service scope")
+    daily_capacity: int = Field(0, ge=0, description="Daily capacity")
+    current_load: int = Field(0, ge=0, description="Current load")
+    max_concurrent_operations: int = Field(1, ge=1, description="Max concurrent operations")
+    
+    # Service configuration
+    services_offered: Optional[List[str]] = Field(None, description="Services offered")
+    operating_hours: Optional[Dict[str, Any]] = Field(None, description="Operating hours")
+    special_hours: Optional[Dict[str, Any]] = Field(None, description="Special hours")
+    
+    # Contact information
+    contact_person: Optional[str] = Field(None, max_length=100, description="Contact person")
+    phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
+    fax_number: Optional[str] = Field(None, max_length=20, description="Fax number")
+    email: Optional[str] = Field(None, max_length=255, description="Email address")
+    
+    # Facility details
+    facility_description: Optional[str] = Field(None, description="Facility description")
+    accessibility_features: Optional[List[str]] = Field(None, description="Accessibility features")
+    parking_availability: Optional[bool] = Field(None, description="Parking available")
+    public_transport_access: Optional[str] = Field(None, description="Public transport access")
+    operational_notes: Optional[str] = Field(None, description="Operational notes")
+    public_instructions: Optional[str] = Field(None, description="Public instructions")
+    
+    # Status flags
+    is_active: bool = Field(True, description="Active status")
+    is_public: bool = Field(True, description="Public visibility")
+    requires_appointment: bool = Field(False, description="Requires appointment")
+    
+    def to_flat_location_create(self) -> 'LocationBase':
+        """Convert nested address structure to flat structure for database storage"""
+        flat_data = {
+            "location_code": self.location_code,
+            "location_name": self.location_name,
+            "infrastructure_type": self.infrastructure_type,
+            "address_line_1": self.address.address_line_1,
+            "address_line_2": self.address.address_line_2,
+            "address_line_3": self.address.address_line_3,
+            "city": self.address.city,
+            "province_code": self.address.province_code,
+            "postal_code": self.address.postal_code,
+            "country_code": self.address.country_code,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "operational_status": self.operational_status,
+            "location_scope": self.location_scope,
+            "daily_capacity": self.daily_capacity,
+            "current_load": self.current_load,
+            "max_concurrent_operations": self.max_concurrent_operations,
+            "services_offered": self.services_offered,
+            "operating_hours": self.operating_hours,
+            "special_hours": self.special_hours,
+            "contact_person": self.contact_person,
+            "phone_number": self.phone_number,
+            "fax_number": self.fax_number,
+            "email": self.email,
+            "facility_description": self.facility_description,
+            "accessibility_features": self.accessibility_features,
+            "parking_availability": self.parking_availability,
+            "public_transport_access": self.public_transport_access,
+            "operational_notes": self.operational_notes,
+            "public_instructions": self.public_instructions,
+            "is_active": self.is_active,
+            "is_public": self.is_public,
+            "requires_appointment": self.requires_appointment,
+        }
+        return LocationBase(**flat_data)
+
 class LocationCreate(LocationBase):
-    """Location creation schema"""
+    """Location creation schema (flat structure for backward compatibility)"""
     user_group_id: str = Field(..., description="Parent user group ID")
     office_id: Optional[str] = Field(None, description="Parent office ID")
 

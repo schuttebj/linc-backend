@@ -13,7 +13,8 @@ from app.core.security import get_current_user
 from app.core.permissions import require_permission
 from app.crud.location import location, location_create, location_update, location_delete
 from app.schemas.location import (
-    LocationCreate, 
+    LocationCreate,
+    LocationCreateNested, 
     LocationUpdate, 
     LocationResponse, 
     LocationListFilter,
@@ -27,11 +28,11 @@ router = APIRouter()
 def create_location(
     *,
     db: Session = Depends(get_db),
-    location_in: LocationCreate,
+    location_in: LocationCreateNested,
     current_user: User = Depends(require_permission("location_create"))
 ):
     """
-    Create new location.
+    Create new location with nested address support.
     
     Requires location_create permission.
     """
@@ -43,10 +44,20 @@ def create_location(
             detail="Location code already exists"
         )
     
+    # Convert nested address structure to flat structure for database storage
+    flat_location_data = location_in.to_flat_location_create()
+    
+    # Create LocationCreate object with flat structure and add required fields
+    location_create_data = LocationCreate(
+        user_group_id=location_in.user_group_id,
+        office_id=location_in.office_id,
+        **flat_location_data.dict()
+    )
+    
     # Create location
     db_location = location_create(
         db=db, 
-        obj_in=location_in, 
+        obj_in=location_create_data, 
         created_by=current_user.username
     )
     
