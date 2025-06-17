@@ -82,6 +82,21 @@ def read_locations(
     locations = location.get_multi(db=db, skip=skip, limit=limit)
     return locations
 
+@router.get("/statistics", response_model=LocationStatistics)
+def get_location_statistics(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("location_read"))
+):
+    """
+    Get location statistics.
+    
+    Requires location_read permission.
+    """
+    
+    stats = location.get_statistics(db=db)
+    return stats
+
 @router.get("/{location_id}", response_model=LocationResponse)
 def read_location(
     *,
@@ -351,21 +366,6 @@ def update_location_load(
     
     updated_location = location_update_load(db=db, location_id=location_id, new_load=new_load)
     return updated_location
-
-@router.get("/statistics", response_model=LocationStatistics)
-def get_location_statistics(
-    *,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
-):
-    """
-    Get location statistics.
-    
-    Requires location_read permission.
-    """
-    
-    stats = location.get_statistics(db=db)
-    return stats
 
 @router.get("/validate-code/{location_code}", response_model=dict)
 def validate_location_code(

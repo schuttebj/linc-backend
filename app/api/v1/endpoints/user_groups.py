@@ -93,6 +93,24 @@ def read_user_groups(
     
     return user_groups
 
+@router.get("/statistics", response_model=UserGroupStatistics)
+def get_user_group_statistics(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get user group statistics.
+    """
+    if not current_user.has_permission("user_group_read"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to read user group statistics"
+        )
+    
+    stats = user_group.get_statistics(db=db)
+    return stats
+
 @router.get("/{user_group_id}", response_model=UserGroupResponse)
 def read_user_group(
     *,
@@ -266,24 +284,6 @@ def get_help_desk_user_groups(
         ]
     
     return user_groups
-
-@router.get("/statistics", response_model=UserGroupStatistics)
-def get_user_group_statistics(
-    *,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get user group statistics.
-    """
-    if not current_user.has_permission("user_group_read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user group statistics"
-        )
-    
-    stats = user_group.get_statistics(db=db)
-    return stats
 
 @router.get("/validate-code/{user_group_code}", response_model=dict)
 def validate_user_group_code(
