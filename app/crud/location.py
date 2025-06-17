@@ -318,4 +318,17 @@ class LocationCRUD:
         return c * r
 
 # Create instance
-location = LocationCRUD(Location) 
+location = LocationCRUD(Location)
+
+# Export individual functions for backward compatibility
+def location_create(db: Session, *, obj_in: LocationCreate, created_by: str = None) -> Location:
+    """Create a new location"""
+    return location.create(db=db, obj_in=obj_in, created_by=created_by)
+
+def location_update(db: Session, *, db_obj: Location, obj_in: LocationUpdate, updated_by: str = None) -> Location:
+    """Update location"""
+    return location.update(db=db, db_obj=db_obj, obj_in=obj_in, updated_by=updated_by)
+
+def location_delete(db: Session, *, id: UUID) -> Location:
+    """Soft delete location"""
+    return location.delete(db=db, id=id) 

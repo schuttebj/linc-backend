@@ -200,4 +200,17 @@ class UserGroupCRUD:
         }
 
 # Create instance
-user_group = UserGroupCRUD(UserGroup) 
+user_group = UserGroupCRUD(UserGroup)
+
+# Export individual functions for backward compatibility
+def user_group_create(db: Session, *, obj_in: UserGroupCreate, created_by: str = None) -> UserGroup:
+    """Create a new user group"""
+    return user_group.create(db=db, obj_in=obj_in, created_by=created_by)
+
+def user_group_update(db: Session, *, db_obj: UserGroup, obj_in: UserGroupUpdate, updated_by: str = None) -> UserGroup:
+    """Update user group"""
+    return user_group.update(db=db, db_obj=db_obj, obj_in=obj_in, updated_by=updated_by)
+
+def user_group_delete(db: Session, *, id: UUID) -> UserGroup:
+    """Soft delete user group"""
+    return user_group.delete(db=db, id=id) 

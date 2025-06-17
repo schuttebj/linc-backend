@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.crud.user_group import user_group
+from app.crud.user_group import user_group, user_group_create, user_group_update, user_group_delete
 from app.schemas.location import (
     UserGroupCreate, 
     UserGroupUpdate, 
@@ -49,7 +49,7 @@ def create_user_group(
         )
     
     # Create user group
-    db_user_group = user_group.create(
+    db_user_group = user_group_create(
         db=db, 
         obj_in=user_group_in, 
         created_by=current_user.username
@@ -166,7 +166,7 @@ def update_user_group(
             detail="Not enough permissions to update this user group"
         )
     
-    updated_user_group = user_group.update(
+    updated_user_group = user_group_update(
         db=db, 
         db_obj=db_user_group, 
         obj_in=user_group_in,
@@ -205,7 +205,7 @@ def delete_user_group(
             detail="Not enough permissions to delete this user group"
         )
     
-    deleted_user_group = user_group.delete(db=db, id=user_group_id)
+    deleted_user_group = user_group_delete(db=db, id=user_group_id)
     return deleted_user_group
 
 @router.get("/by-province/{province_code}", response_model=List[UserGroupResponse])

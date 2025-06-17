@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.crud.location import location
+from app.crud.location import location, location_create, location_update, location_delete
 from app.schemas.location import (
     LocationCreate, 
     LocationUpdate, 
