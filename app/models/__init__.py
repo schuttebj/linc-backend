@@ -11,7 +11,7 @@ from .license import (
     ApplicationStatus,
     LicenseType
 )
-from .user import User, Role, Permission, UserAuditLog, UserStatus
+from .user import User, Role, Permission, UserAuditLog, UserStatus, UserSession
 # UserProfile functionality consolidated into User model
 from .audit import AuditLog, FileMetadata
 
@@ -39,7 +39,6 @@ __all__ = [
     "Permission", 
     "UserAuditLog",
     "UserStatus",
-    "UserProfile",
     "UserSession",
     "AuditLog",
     "FileMetadata",
