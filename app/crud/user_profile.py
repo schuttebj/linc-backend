@@ -17,13 +17,13 @@ from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter
 )
 from app.core.security import get_password_hash
-from app.crud.base import CRUDBase
+# No base CRUD class needed - using standalone pattern
 
-class CRUDUserProfile(CRUDBase[UserProfile, UserProfileCreate, UserProfileUpdate]):
+class CRUDUserProfile:
     """CRUD operations for User Profile management"""
     
-    def __init__(self):
-        super().__init__(UserProfile)
+    def __init__(self, model=UserProfile):
+        self.model = model
     
     def create_user_profile(
         self,
