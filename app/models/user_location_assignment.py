@@ -15,21 +15,21 @@ from app.models.base import BaseModel
 
 class AssignmentType(PythonEnum):
     """Types of user-location assignments"""
-    PRIMARY = "primary"                  # Primary/home location
-    SECONDARY = "secondary"              # Secondary assignment
-    TEMPORARY = "temporary"              # Temporary assignment
-    BACKUP = "backup"                    # Backup coverage
-    TRAINING = "training"                # Training assignment
-    SUPERVISION = "supervision"          # Supervisory role
-    MAINTENANCE = "maintenance"          # Maintenance role
+    PRIMARY = "PRIMARY"                  # Primary/home location
+    SECONDARY = "SECONDARY"              # Secondary assignment
+    TEMPORARY = "TEMPORARY"              # Temporary assignment
+    BACKUP = "BACKUP"                    # Backup coverage
+    TRAINING = "TRAINING"                # Training assignment
+    SUPERVISION = "SUPERVISION"          # Supervisory role
+    MAINTENANCE = "MAINTENANCE"          # Maintenance role
 
 class AssignmentStatus(PythonEnum):
     """Status of user assignments"""
-    ACTIVE = "active"                    # Currently active
-    INACTIVE = "inactive"                # Temporarily inactive
-    SUSPENDED = "suspended"              # Suspended assignment
-    PENDING = "pending"                  # Pending approval
-    EXPIRED = "expired"                  # Assignment expired
+    ACTIVE = "ACTIVE"                    # Currently active
+    INACTIVE = "INACTIVE"                # Temporarily inactive
+    SUSPENDED = "SUSPENDED"              # Suspended assignment
+    PENDING = "PENDING"                  # Pending approval
+    EXPIRED = "EXPIRED"                  # Assignment expired
 
 class UserLocationAssignment(BaseModel):
     """

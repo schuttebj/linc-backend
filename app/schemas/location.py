@@ -93,21 +93,21 @@ class ResourceStatusEnum(str, Enum):
 
 class AssignmentTypeEnum(str, Enum):
     """Assignment types"""
-    PRIMARY = "primary"
-    SECONDARY = "secondary"
-    TEMPORARY = "temporary"
-    BACKUP = "backup"
-    TRAINING = "training"
-    SUPERVISION = "supervision"
-    MAINTENANCE = "maintenance"
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    TEMPORARY = "TEMPORARY"
+    BACKUP = "BACKUP"
+    TRAINING = "TRAINING"
+    SUPERVISION = "SUPERVISION"
+    MAINTENANCE = "MAINTENANCE"
 
 class AssignmentStatusEnum(str, Enum):
     """Assignment status"""
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    SUSPENDED = "suspended"
-    PENDING = "pending"
-    EXPIRED = "expired"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
+    PENDING = "PENDING"
+    EXPIRED = "EXPIRED"
 
 # UserGroup Schemas
 class UserGroupBase(BaseModel):
