@@ -615,7 +615,7 @@ def validate_username(
     """
     try:
         # Check if username exists
-        existing_user = user_profile.get_user_by_username(db=db, username=username)
+        existing_user = user_management.get_user_by_username(db=db, username=username)
         
         return {
             "username": username,
