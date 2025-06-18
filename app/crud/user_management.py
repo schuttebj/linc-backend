@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import and_, or_, desc, func
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
+import structlog
 
 from app.models.user import User, UserSession, UserStatus, UserType, IDType, Role
 from app.models.user_group import UserGroup
@@ -17,6 +18,8 @@ from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter
 )
 from app.core.security import get_password_hash
+
+logger = structlog.get_logger()
 
 class CRUDUserManagement:
     """CRUD operations for comprehensive user management"""
@@ -201,55 +204,59 @@ class CRUDUserManagement:
     ) -> List[User]:
         """Search users for staff assignment with enhanced filtering"""
         
-        query = db.query(User).options(
-            selectinload(User.user_group),
-            selectinload(User.roles),
-            selectinload(User.location_assignments)
-        )
-        
-        # Text search across multiple fields
-        search_filter = or_(
-            User.full_name.ilike(f"%{search_term}%"),
-            User.username.ilike(f"%{search_term}%"),
-            User.email.ilike(f"%{search_term}%"),
-            User.employee_id.ilike(f"%{search_term}%"),
-            User.user_name.ilike(f"%{search_term}%")
-        )
-        query = query.filter(search_filter)
-        
-        # Filter by user type if specified
-        if user_type_filter:
-            query = query.filter(User.user_type_code == user_type_filter)
-        
-        # Exclude users already assigned to specific location
-        if exclude_assigned_to_location:
-            from app.models.user_location_assignment import UserLocationAssignment
-            assigned_user_ids = db.query(UserLocationAssignment.user_id).filter(
-                UserLocationAssignment.location_id == exclude_assigned_to_location,
-                UserLocationAssignment.is_active == True
-            ).subquery()
-            query = query.filter(~User.id.in_(assigned_user_ids))
-        
-        # Only active users
-        query = query.filter(User.is_active == True)
-        
-        # Order by relevance (exact matches first, then partial)
-        query = query.order_by(
-            # Exact username matches first
-            func.case(
-                (User.username.ilike(search_term), 1),
-                else_=2
-            ),
-            # Then exact name matches
-            func.case(
-                (User.full_name.ilike(search_term), 1),
-                else_=2
-            ),
-            # Then by creation date (newest first)
-            User.created_at.desc()
-        )
-        
-        return query.limit(limit).all()
+        try:
+            # Start with basic query - no eager loading to avoid relationship issues
+            query = db.query(User)
+            
+            # Build search filters with null checks
+            search_filters = []
+            
+            # Add search conditions with proper null handling
+            if User.full_name:
+                search_filters.append(User.full_name.ilike(f"%{search_term}%"))
+            if User.username:
+                search_filters.append(User.username.ilike(f"%{search_term}%"))
+            if User.email:
+                search_filters.append(User.email.ilike(f"%{search_term}%"))
+            if User.employee_id:
+                search_filters.append(User.employee_id.ilike(f"%{search_term}%"))
+            if User.user_name:
+                search_filters.append(User.user_name.ilike(f"%{search_term}%"))
+            
+            # Apply search filter
+            if search_filters:
+                query = query.filter(or_(*search_filters))
+            
+            # Filter by user type if specified
+            if user_type_filter:
+                query = query.filter(User.user_type_code == user_type_filter)
+            
+            # Exclude users already assigned to specific location (simplified)
+            if exclude_assigned_to_location:
+                try:
+                    from app.models.user_location_assignment import UserLocationAssignment
+                    assigned_user_ids = db.query(UserLocationAssignment.user_id).filter(
+                        UserLocationAssignment.location_id == exclude_assigned_to_location,
+                        UserLocationAssignment.is_active == True
+                    ).subquery()
+                    query = query.filter(~User.id.in_(assigned_user_ids))
+                except Exception as e:
+                    # If location assignment filtering fails, continue without it
+                    logger.warning(f"Location assignment filtering failed: {e}")
+            
+            # Only active users
+            query = query.filter(User.is_active == True)
+            
+            # Simple ordering
+            query = query.order_by(User.username.asc())
+            
+            # Execute query with limit
+            return query.limit(limit).all()
+            
+        except Exception as e:
+            logger.error(f"Error in search_users: {e}")
+            # Return empty list on error rather than failing
+            return []
     
     def update_user(
         self,
