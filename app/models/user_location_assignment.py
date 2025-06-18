@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from enum import Enum as PythonEnum
+from datetime import datetime
 import uuid
 
 from app.models.base import BaseModel
@@ -126,15 +127,19 @@ class UserLocationAssignment(BaseModel):
         if not self.is_active or self.assignment_status != AssignmentStatus.ACTIVE.value:
             return False
         
-        now = func.now()
+        now = datetime.utcnow()
         
-        # Check effective date
-        if self.effective_date and self.effective_date > now:
-            return False
+        # Check effective date - make timezone naive for comparison
+        if self.effective_date:
+            effective_dt = self.effective_date.replace(tzinfo=None) if self.effective_date.tzinfo else self.effective_date
+            if effective_dt > now:
+                return False
         
-        # Check expiry date
-        if self.expiry_date and self.expiry_date <= now:
-            return False
+        # Check expiry date - make timezone naive for comparison
+        if self.expiry_date:
+            expiry_dt = self.expiry_date.replace(tzinfo=None) if self.expiry_date.tzinfo else self.expiry_date
+            if expiry_dt <= now:
+                return False
         
         return True
     
@@ -154,14 +159,16 @@ class UserLocationAssignment(BaseModel):
         if not self.expiry_date:
             return -1  # Indefinite assignment
         
-        delta = self.expiry_date - func.now()
+        now = datetime.utcnow()
+        expiry_dt = self.expiry_date.replace(tzinfo=None) if self.expiry_date.tzinfo else self.expiry_date
+        delta = expiry_dt - now
         return delta.days if delta.days > 0 else 0
     
     @property
     def assignment_duration_days(self) -> int:
         """Get total assignment duration in days"""
         start_date = self.effective_date or self.created_at
-        end_date = self.expiry_date or func.now()
+        end_date = self.expiry_date or datetime.utcnow()
         
         delta = end_date - start_date
         return delta.days
@@ -182,7 +189,7 @@ class UserLocationAssignment(BaseModel):
     
     def extend_assignment(self, new_expiry_date: DateTime) -> bool:
         """Extend assignment expiry date"""
-        if new_expiry_date <= func.now():
+        if new_expiry_date <= datetime.utcnow():
             return False
         
         self.expiry_date = new_expiry_date
@@ -202,7 +209,7 @@ class UserLocationAssignment(BaseModel):
     
     def record_activity(self, hours_worked: int = None) -> None:
         """Record user activity at this location"""
-        self.last_activity_date = func.now()
+        self.last_activity_date = datetime.utcnow()
         if hours_worked:
             self.total_hours_worked = (self.total_hours_worked or 0) + hours_worked
     

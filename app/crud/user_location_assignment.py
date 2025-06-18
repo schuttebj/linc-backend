@@ -37,6 +37,7 @@ class UserLocationAssignmentCRUD:
             assignment_reason=obj_in.assignment_reason,
             notes=obj_in.notes,
             is_active=obj_in.is_active,
+            assigned_by=created_by,
             created_by=created_by
         )
         db.add(db_obj)
