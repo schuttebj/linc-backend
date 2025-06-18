@@ -714,7 +714,7 @@ class UserLocationAssignmentBase(BaseModel):
 class UserLocationAssignmentCreate(UserLocationAssignmentBase):
     """User location assignment creation schema"""
     user_id: str = Field(..., description="User ID - Must be existing user")
-    location_id: str = Field(..., description="Location ID")
+    location_id: Optional[str] = Field(None, description="Location ID - Will be set from URL parameter")
     office_id: Optional[str] = Field(None, description="Office ID")
     
     # Optional user creation data for new users (if user_id is "new")
