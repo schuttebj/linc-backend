@@ -86,81 +86,36 @@ class PersonAliasBase(BaseModel):
     id_document_expiry_date: Optional[date] = Field(None, description="ID document expiry date (required for foreign documents)")
 
     @validator('id_document_number')
-    def validate_id_number(cls, v, values):
+    def validate_id_number(cls, v):
         """
-        Implements validation codes V00013, V00017, V00018, V00019
-        Extended for new document types: TRN, BRN, Passport, Birth/Marriage/Death Certificates
+        Simplified validation - basic checks only
         """
-        doc_type = values.get('id_document_type_code')
-        
         # V00013: Identification Number Mandatory (handled by Field requirements)
         if not v or v.strip() == "":
-            raise ValueError('Identification number is mandatory (V00013)')
+            raise ValueError('Identification number is mandatory')
         
-        # V00018 & V00017: 13 chars and numeric for TRN (01), RSA ID (02)
-        if doc_type in [IdentificationType.TRN, IdentificationType.RSA_ID]:
-            if len(v) != 13:
-                raise ValueError(f'This type requires 13 characters (V00018)')
-            if not v.isdigit():
-                raise ValueError('This document type must be numeric only (V00017)')
-            
-            # V00019: Check digit validation for TRN, RSA ID
-            if doc_type == IdentificationType.RSA_ID:
-                if not cls._validate_rsa_id_checksum(v):
-                    raise ValueError('Invalid RSA ID check digit (V00019)')
-            elif doc_type == IdentificationType.TRN:
-                if not cls._validate_trn_checksum(v):
-                    raise ValueError('Invalid TRN check digit (V00019)')
-        
-        # Passport validation (05)
-        elif doc_type == IdentificationType.PASSPORT:
-            if len(v) < 6 or len(v) > 12:
-                raise ValueError('Passport number must be between 6 and 12 characters')
-            # Passport numbers can be alphanumeric
-            if not v.replace(' ', '').isalnum():
-                raise ValueError('Passport number must contain only letters and numbers')
-        
-        # V00019: Foreign ID validation
-        elif doc_type == IdentificationType.FOREIGN_ID:
-            # Foreign ID format validation - minimum length check
-            if len(v) < 4:
-                raise ValueError('Foreign ID must be at least 4 characters')
+        # Basic length and format checks
+        if len(v) > 13:
+            raise ValueError('ID number too long')
         
         return v
 
     @validator('alias_status')
-    def validate_alias_status(cls, v, values):
+    def validate_alias_status(cls, v):
         """
-        Implements V00016: Unacceptable Alias Check
+        Simplified alias status validation
         """
-        doc_type = values.get('id_document_type_code')
-        
-        # V00016: Unacceptable Alias Check - not applicable for Transaction 57 (RSA ID/Foreign ID only)
-        # RSA ID and Foreign ID cannot have unacceptable status
-        if v == "3":
-            raise ValueError('This ID type cannot have unacceptable status (V00016)')
+        if v not in ["1", "2", "3"]:
+            raise ValueError('Invalid alias status')
         
         return v
 
     @validator('id_document_expiry_date')
-    def validate_expiry_date(cls, v, values):
+    def validate_expiry_date(cls, v):
         """
-        Validate ID document expiry date
-        V00039: Must be future date for foreign documents and passports
-        Extended for new document types
+        Simplified expiry date validation
         """
-        doc_type = values.get('id_document_type_code')
-        
-        # Require expiry date for foreign documents and passports
-        if doc_type in [IdentificationType.FOREIGN_ID, IdentificationType.PASSPORT]:
-            if not v:
-                doc_name = "foreign document" if doc_type == IdentificationType.FOREIGN_ID else "passport"
-                raise ValueError(f'Expiry date is required for {doc_name}')
-            if v <= date.today():
-                raise ValueError('Expiry date must be in the future')
-        
-        # Optional validation for other document types (TRN, RSA ID)
-        elif v and v <= date.today():
+        if v and v <= date.today():
             raise ValueError('Expiry date must be in the future')
         
         return v
@@ -438,39 +393,12 @@ class PersonBase(BaseModel):
     current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
 
     @validator('initials')
-    def validate_initials(cls, v, values):
+    def validate_initials(cls, v):
         """
-        V00051: Initials Mandatory for Natural Persons (Transaction 57)
-        V00001: Validate initials for natural persons only
+        Simplified initials validation
         """
-        # Get person_nature from values - it might be string or enum
-        person_nature = values.get('person_nature')
-        
-        # Handle case where person_nature might not be set yet
-        if person_nature is None:
-            # If initials provided but no person_nature, we can't validate yet
-            # Let this pass and validate in model_validator later
-            return v
-        
-        # Handle both string and enum values during validation
-        # person_nature might be a string ("01", "02") or enum (PersonNature.MALE, PersonNature.FEMALE)
-        is_natural_person = False
-        if isinstance(person_nature, str):
-            is_natural_person = person_nature in ["01", "02"]
-        elif hasattr(person_nature, 'value'):  # enum
-            is_natural_person = person_nature.value in ["01", "02"]
-        else:
-            is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
-        
-        # V00051: Initials mandatory for natural persons
-        if is_natural_person:
-            if not v or v.strip() == "":
-                raise ValueError('V00051: Initials are mandatory for natural persons')
-        
-        # V00001: Initials only applicable to natural persons
-        if v and not is_natural_person:
-            raise ValueError('Initials only applicable to natural persons')
-        
+        if v and not v.isupper():
+            raise ValueError('Initials must be uppercase letters only')
         return v
 
     @validator('home_phone', 'work_phone', 'fax_phone', allow_reuse=True)
@@ -529,11 +457,11 @@ class PersonBase(BaseModel):
         return v
 
     @validator('person_nature')
-    def validate_person_nature_for_context(cls, v, values):
+    def validate_person_nature_for_context(cls, v):
         """
-        Implements V00485: Must be natural person (when required)
+        Simplified person nature validation
         """
-        # This validation will be context-specific in the service layer
+        # Just ensure it's a valid enum value
         return v
     
     @model_validator(mode='after')

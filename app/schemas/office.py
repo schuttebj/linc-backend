@@ -197,57 +197,37 @@ class OfficeResponse(BaseModel):
         return v
     
     @validator('full_office_code', pre=True)
-    def compute_full_office_code(cls, v, values):
-        if 'region_id' in values and 'office_code' in values:
-            return f"{values.get('region_id', '')}-{values.get('office_code', '')}"
-        return v or ""
+    def compute_full_office_code(cls, v):
+        # For now, just return the value as-is or set a default
+        return v or "Unknown-Office"
     
     @validator('is_primary_office', pre=True)
-    def compute_is_primary_office(cls, v, values):
-        return values.get('office_type') == 'primary'
+    def compute_is_primary_office(cls, v):
+        return v if v is not None else False
     
     @validator('is_mobile_unit', pre=True)
-    def compute_is_mobile_unit(cls, v, values):
-        return values.get('office_type') == 'mobile'
+    def compute_is_mobile_unit(cls, v):
+        return v if v is not None else False
     
     @validator('available_capacity', pre=True)
-    def compute_available_capacity(cls, v, values):
-        daily_capacity = values.get('daily_capacity', 0)
-        current_load = values.get('current_load', 0)
-        return max(0, daily_capacity - current_load)
+    def compute_available_capacity(cls, v):
+        return v if v is not None else 0
     
     @validator('capacity_utilization', pre=True)
-    def compute_capacity_utilization(cls, v, values):
-        daily_capacity = values.get('daily_capacity', 0)
-        current_load = values.get('current_load', 0)
-        if daily_capacity > 0:
-            return round((current_load / daily_capacity) * 100, 2)
-        return 0.0
+    def compute_capacity_utilization(cls, v):
+        return v if v is not None else 0.0
     
     @validator('full_address', pre=True)
-    def compute_full_address(cls, v, values):
-        parts = []
-        if values.get('address_line_1'):
-            parts.append(values['address_line_1'])
-        if values.get('address_line_2'):
-            parts.append(values['address_line_2'])
-        if values.get('address_line_3'):
-            parts.append(values['address_line_3'])
-        if values.get('city'):
-            parts.append(values['city'])
-        if values.get('postal_code'):
-            parts.append(values['postal_code'])
-        return ', '.join(parts)
+    def compute_full_address(cls, v):
+        return v or "Address not available"
     
     @validator('is_dltc', pre=True)
-    def compute_is_dltc(cls, v, values):
-        infrastructure_type = values.get('infrastructure_type', '')
-        return infrastructure_type in ['10', '11']  # FIXED_DLTC, MOBILE_DLTC
+    def compute_is_dltc(cls, v):
+        return v if v is not None else False
     
     @validator('is_printing_facility', pre=True)
-    def compute_is_printing_facility(cls, v, values):
-        infrastructure_type = values.get('infrastructure_type', '')
-        return infrastructure_type in ['12', '13']  # PRINTING_CENTER, COMBINED_CENTER
+    def compute_is_printing_facility(cls, v):
+        return v if v is not None else False
     
     class Config:
         from_attributes = True

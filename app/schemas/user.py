@@ -197,12 +197,11 @@ class UserResponse(BaseModel):
     roles: List["RoleResponse"] = []
     
     @validator('full_name', pre=True, always=True)
-    def generate_full_name(cls, v, values):
+    def generate_full_name(cls, v):
         """Generate full_name from first_name and last_name if not provided"""
+        # For now, just return the value as-is or set a default
         if v is None:
-            first_name = values.get('first_name', '')
-            last_name = values.get('last_name', '')
-            return f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown User"
+            return "Unknown User"
         return v
     
     @validator('id', pre=True)

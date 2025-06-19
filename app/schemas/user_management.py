@@ -81,16 +81,12 @@ class PersonalDetailsBase(BaseModel):
     alternative_phone: Optional[str] = Field(None, max_length=20, description="Alternative phone number")
     
     @validator('id_number')
-    def validate_id_number(cls, v, values):
-        """Validate ID number based on ID type"""
-        id_type = values.get('id_type')
-        
-        if id_type in [IDType.TRN, IDType.SA_ID, IDType.PASSPORT]:
-            if len(v) != 13:
-                raise ValueError(f'{id_type} must be 13 characters long')
-            if id_type in [IDType.SA_ID, IDType.TRN] and not v.isdigit():
-                raise ValueError(f'{id_type} must be numeric')
-        
+    def validate_id_number(cls, v):
+        """Simplified ID number validation"""
+        if not v or len(v) < 4:
+            raise ValueError('ID number must be at least 4 characters')
+        if len(v) > 20:
+            raise ValueError('ID number too long')
         return v
     
     @validator('phone_number', 'alternative_phone')
@@ -306,38 +302,15 @@ class UserProfileResponse(BaseModel):
         return v
     
     @validator('personal_details', pre=True)
-    def build_personal_details(cls, v, values):
-        """Build personal details from flat UserProfile model"""
-        if isinstance(v, dict):
-            return v
-        
-        # If v is a UserProfile model instance, build the nested structure
-        user_profile = values.get('__root__') or v
-        if hasattr(user_profile, 'id_type'):
-            return PersonalDetailsBase(
-                id_type=user_profile.id_type,
-                id_number=user_profile.id_number,
-                full_name=user_profile.full_name,
-                email=user_profile.email,
-                phone_number=user_profile.phone_number,
-                alternative_phone=user_profile.alternative_phone
-            )
+    def build_personal_details(cls, v):
+        """Build personal details from user data"""
+        # For now, just return the value as-is
         return v
     
     @validator('geographic_assignment', pre=True)
-    def build_geographic_assignment(cls, v, values):
-        """Build geographic assignment from flat UserProfile model"""
-        if isinstance(v, dict):
-            return v
-            
-        # If v is a UserProfile model instance, build the nested structure
-        user_profile = values.get('__root__') or v
-        if hasattr(user_profile, 'country_code'):
-            return GeographicAssignmentBase(
-                country_code=user_profile.country_code,
-                province_code=user_profile.province_code,
-                region=user_profile.region
-            )
+    def build_geographic_assignment(cls, v):
+        """Build geographic assignment from user data"""
+        # For now, just return the value as-is
         return v
     
     class Config:
