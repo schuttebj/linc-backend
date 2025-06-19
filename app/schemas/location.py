@@ -357,52 +357,6 @@ class LocationCreateNested(BaseModel):
     is_active: Optional[bool] = Field(True, description="Active status")
     is_public: Optional[bool] = Field(True, description="Public visibility")
     requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
-    
-    def to_flat_location_create(self) -> 'LocationBase':
-        """Convert nested address structure to flat structure for database storage"""
-        # Map frontend field names to backend field names
-        daily_capacity = 0
-        if self.max_daily_capacity is not None:
-            daily_capacity = self.max_daily_capacity
-        elif self.max_users is not None:
-            daily_capacity = self.max_users
-        
-        flat_data = {
-            "location_code": self.location_code,
-            "location_name": self.location_name,
-            "infrastructure_type": self.infrastructure_type,
-            "address_line_1": self.address.address_line_1,
-            "address_line_2": self.address.address_line_2,
-            "address_line_3": self.address.address_line_3,
-            "city": self.address.city,
-            "province_code": self.address.province_code,
-            "postal_code": self.address.postal_code,
-            "country_code": self.address.country_code,
-            "latitude": self.latitude,
-            "longitude": self.longitude,
-            "operational_status": self.operational_status,
-            "location_scope": self.location_scope,
-            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
-            "current_load": self.current_load or 0,
-            "max_concurrent_operations": self.max_concurrent_operations or 1,
-            "services_offered": self.services_offered,
-            "operating_hours": self.operating_hours,
-            "special_hours": self.special_hours,
-            "contact_person": self.contact_person,
-            "phone_number": self.phone_number,
-            "fax_number": self.fax_number,
-            "email": self.email_address,  # Map email_address -> email
-            "facility_description": self.facility_description,
-            "accessibility_features": self.accessibility_features,
-            "parking_availability": self.parking_availability,
-            "public_transport_access": self.public_transport_access,
-            "operational_notes": self.operational_notes,
-            "public_instructions": self.public_instructions,
-            "is_active": self.is_active if self.is_active is not None else True,
-            "is_public": self.is_public if self.is_public is not None else True,
-            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
-        }
-        return LocationBase(**flat_data)
 
 class LocationCreate(LocationBase):
     """Location creation schema (flat structure for backward compatibility)"""

@@ -275,25 +275,6 @@ class PersonAddressBase(BaseModel):
     country_code: str = Field(default="ZA", max_length=3, description="Country code")
     province_code: Optional[str] = Field(None, max_length=10, description="Province code")
 
-    @model_validator(mode='after')
-    def validate_address_rules(self):
-        """
-        Implements address validation rules V00095, V00098, V00107
-        """
-        # V00095: Line 1 mandatory for postal addresses
-        if self.address_type == AddressType.POSTAL and (not self.address_line_1 or self.address_line_1.strip() == ""):
-            raise ValueError('Postal address line 1 is mandatory (V00095)')
-        
-        # V00098: Postal code mandatory for postal addresses
-        if self.address_type == AddressType.POSTAL and (not self.postal_code or self.postal_code.strip() == ""):
-            raise ValueError('Postal code is mandatory for postal addresses (V00098)')
-        
-        # V00107: Postal code mandatory if street address entered
-        if self.address_type == AddressType.STREET and self.address_line_1 and (not self.postal_code or self.postal_code.strip() == ""):
-            raise ValueError('Postal code is mandatory if street address entered (V00107)')
-        
-        return self
-
 
 class PersonAddressCreate(PersonAddressBase):
     """Schema for creating person address"""
@@ -463,30 +444,6 @@ class PersonBase(BaseModel):
         """
         # Just ensure it's a valid enum value
         return v
-    
-    @model_validator(mode='after')
-    def validate_complete_person_data(self):
-        """
-        Final validation after all fields are processed
-        """
-        # Double-check initials validation after all fields are set
-        person_nature = self.person_nature
-        initials = self.initials
-        
-        # Handle both string and enum values
-        is_natural_person = False
-        if isinstance(person_nature, str):
-            is_natural_person = person_nature in ["01", "02"]
-        elif hasattr(person_nature, 'value'):  # enum
-            is_natural_person = person_nature.value in ["01", "02"]
-        else:
-            is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
-        
-        # V00001: Initials only applicable to natural persons
-        if initials and not is_natural_person:
-            raise ValueError('Initials only applicable to natural persons')
-        
-        return self
 
 
 class PersonCreate(PersonBase):
@@ -498,32 +455,6 @@ class PersonCreate(PersonBase):
     organization: Optional[OrganizationCreate] = Field(None, description="Organization details (for person_nature 03-17)")
     aliases: Optional[List[PersonAliasCreate]] = Field(default_factory=list, description="ID documents")
     addresses: Optional[List[PersonAddressCreate]] = Field(default_factory=list, description="Addresses")
-
-    @model_validator(mode='after')
-    def validate_person_data(self):
-        """
-        Comprehensive person creation validation
-        """
-        # V00485: Natural person validation
-        # Handle both string and enum values
-        is_natural_person = False
-        if isinstance(self.person_nature, str):
-            is_natural_person = self.person_nature in ["01", "02"]
-        else:
-            is_natural_person = self.person_nature in [PersonNature.MALE, PersonNature.FEMALE]
-        
-        if is_natural_person:
-            if not self.natural_person:
-                raise ValueError('Natural person details required for person_nature 01/02 (V00485)')
-            if self.organization:
-                raise ValueError('Organization details not applicable for natural persons')
-        else:
-            # Organization
-            if self.natural_person:
-                raise ValueError('Natural person details not applicable for organizations')
-            # Organization details are optional for now
-        
-        return self
 
 
 class PersonUpdate(BaseModel):

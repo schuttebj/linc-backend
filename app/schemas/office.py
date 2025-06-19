@@ -271,44 +271,7 @@ class OfficeCreateNested(BaseModel):
     is_operational: Optional[bool] = Field(True, description="Operational status")
     requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
     
-    def to_flat_office_create(self):
-        """Convert nested address structure to flat structure for database storage"""
-        # Map frontend field names to backend field names
-        daily_capacity = 0
-        if self.max_daily_capacity is not None:
-            daily_capacity = self.max_daily_capacity
-        elif self.max_users is not None:
-            daily_capacity = self.max_users
-        
-        flat_data = {
-            "office_code": self.office_code,
-            "office_name": self.office_name,
-            "office_type": self.office_type,
-            "infrastructure_type": self.infrastructure_type,
-            "address_line_1": self.address.address_line_1,
-            "address_line_2": self.address.address_line_2,
-            "address_line_3": self.address.address_line_3,
-            "city": self.address.city,
-            "province_code": self.address.province_code,
-            "postal_code": self.address.postal_code,
-            "country_code": self.address.country_code,
-            "latitude": self.latitude,
-            "longitude": self.longitude,
-            "operational_status": self.operational_status,
-            "office_scope": self.office_scope,
-            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
-            "current_load": self.current_load or 0,
-            "max_concurrent_operations": self.max_concurrent_operations or 1,
-            "staff_count": self.staff_count or 0,
-            "contact_person": self.contact_person,
-            "phone_number": self.phone_number,
-            "email": self.email_address,  # Map email_address -> email
-            "is_active": self.is_active if self.is_active is not None else True,
-            "is_public": self.is_public if self.is_public is not None else True,
-            "is_operational": self.is_operational if self.is_operational is not None else True,
-            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
-        }
-        return flat_data
+    # Removed instance method that was causing callable schema issues
 
 class OfficeListFilter(BaseModel):
     """Office list filter schema"""
