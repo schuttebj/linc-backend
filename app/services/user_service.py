@@ -313,15 +313,11 @@ class UserService:
                         detail="Email already exists"
                     )
             
-            # Update roles if provided
+            # Legacy role assignment removed - use new permission system instead
             if 'role_ids' in update_data:
                 role_ids = update_data.pop('role_ids')
-                if role_ids is not None:
-                    roles = self.db.query(Role).filter(
-                        Role.id.in_(role_ids),
-                        Role.is_active == True
-                    ).all()
-                    user.roles = roles
+                print("WARNING: Legacy role assignment attempted. Use new permission system instead.")
+                # New permission system uses user_type_id and permission_overrides
             
             # Update other fields
             for field, value in update_data.items():
@@ -358,9 +354,8 @@ class UserService:
     ) -> Tuple[List[User], int]:
         """List users with filtering and pagination"""
         try:
-            query = self.db.query(User).options(
-                selectinload(User.roles)
-            )
+            # NEW PERMISSION SYSTEM - No legacy role loading needed
+            query = self.db.query(User)
             
             # Apply filters
             if filters:
@@ -383,8 +378,9 @@ class UserService:
                             User.employee_id.ilike(search_term)
                         )
                     )
+                # Legacy role filtering removed - use new permission system
                 if filters.role:
-                    query = query.join(User.roles).filter(Role.name == filters.role)
+                    print("WARNING: Legacy role filtering attempted. Use new permission system instead.")
             
             # Get total count
             total = query.count()

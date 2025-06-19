@@ -310,10 +310,10 @@ async def add_missing_permissions():
 # User initialization endpoint (for debugging)
 @app.post("/admin/init-users")
 async def init_users():
-    """Create default users and roles - ADMIN ONLY"""
+    """Create default users - ADMIN ONLY"""
     try:
         from app.core.database import get_db_context
-        from app.models.user import User, Role, Permission, UserStatus  # TEMPORARY - Legacy models for migration
+        from app.models.user import User, UserStatus  # NEW SYSTEM ONLY
         from app.core.security import get_password_hash
         from datetime import datetime
         import uuid
@@ -336,87 +336,7 @@ async def init_users():
                     "timestamp": time.time()
                 }
             
-            # Create default permissions
-            permissions = [
-                # Person management
-                {"name": "person_view", "display_name": "View Person Records", "description": "View person records", "category": "person", "resource": "person", "action": "read"},
-                {"name": "person_create", "display_name": "Create Person Records", "description": "Create person records", "category": "person", "resource": "person", "action": "create"},
-                {"name": "person_edit", "display_name": "Edit Person Records", "description": "Edit person records", "category": "person", "resource": "person", "action": "update"},
-                {"name": "person_delete", "display_name": "Delete Person Records", "description": "Delete person records", "category": "person", "resource": "person", "action": "delete"},
-                
-                # License management
-                {"name": "license_view", "display_name": "View License Applications", "description": "View license applications", "category": "license", "resource": "license", "action": "read"},
-                {"name": "license_create", "display_name": "Create License Applications", "description": "Create license applications", "category": "license", "resource": "license", "action": "create"},
-                {"name": "license_approve", "display_name": "Approve License Applications", "description": "Approve license applications", "category": "license", "resource": "license", "action": "approve"},
-                
-                # User Group management (NEW)
-                {"name": "user_group_create", "display_name": "Create User Groups", "description": "Create user groups and authorities", "category": "admin", "resource": "user_group", "action": "create"},
-                {"name": "user_group_read", "display_name": "View User Groups", "description": "View user groups and authorities", "category": "admin", "resource": "user_group", "action": "read"},
-                {"name": "user_group_update", "display_name": "Update User Groups", "description": "Update user groups and authorities", "category": "admin", "resource": "user_group", "action": "update"},
-                {"name": "user_group_delete", "display_name": "Delete User Groups", "description": "Delete user groups and authorities", "category": "admin", "resource": "user_group", "action": "delete"},
-                
-                # Location management (NEW)
-                {"name": "location_create", "display_name": "Create Locations", "description": "Create testing centers and facilities", "category": "admin", "resource": "location", "action": "create"},
-                {"name": "location_read", "display_name": "View Locations", "description": "View testing centers and facilities", "category": "admin", "resource": "location", "action": "read"},
-                {"name": "location_update", "display_name": "Update Locations", "description": "Update testing centers and facilities", "category": "admin", "resource": "location", "action": "update"},
-                {"name": "location_delete", "display_name": "Delete Locations", "description": "Delete testing centers and facilities", "category": "admin", "resource": "location", "action": "delete"},
-                
-                # Office management (NEW)
-                {"name": "office_create", "display_name": "Create Offices", "description": "Create offices within user groups", "category": "admin", "resource": "office", "action": "create"},
-                {"name": "office_read", "display_name": "View Offices", "description": "View offices within user groups", "category": "admin", "resource": "office", "action": "read"},
-                {"name": "office_update", "display_name": "Update Offices", "description": "Update offices within user groups", "category": "admin", "resource": "office", "action": "update"},
-                {"name": "office_delete", "display_name": "Delete Offices", "description": "Delete offices within user groups", "category": "admin", "resource": "office", "action": "delete"},
-                
-                # Resource management (NEW)
-                {"name": "resource_create", "display_name": "Create Resources", "description": "Create location resources", "category": "admin", "resource": "resource", "action": "create"},
-                {"name": "resource_read", "display_name": "View Resources", "description": "View location resources", "category": "admin", "resource": "resource", "action": "read"},
-                {"name": "resource_update", "display_name": "Update Resources", "description": "Update location resources", "category": "admin", "resource": "resource", "action": "update"},
-                {"name": "resource_delete", "display_name": "Delete Resources", "description": "Delete location resources", "category": "admin", "resource": "resource", "action": "delete"},
-                
-                # User assignment management (NEW)
-                {"name": "assignment_create", "display_name": "Create User Assignments", "description": "Assign users to locations", "category": "admin", "resource": "assignment", "action": "create"},
-                {"name": "assignment_read", "display_name": "View User Assignments", "description": "View user location assignments", "category": "admin", "resource": "assignment", "action": "read"},
-                {"name": "assignment_update", "display_name": "Update User Assignments", "description": "Update user location assignments", "category": "admin", "resource": "assignment", "action": "update"},
-                {"name": "assignment_delete", "display_name": "Delete User Assignments", "description": "Remove user location assignments", "category": "admin", "resource": "assignment", "action": "delete"},
-                
-                # System administration
-                {"name": "user_manage", "display_name": "Manage User Accounts", "description": "Manage user accounts", "category": "admin", "resource": "user", "action": "manage"},
-                {"name": "system_admin", "display_name": "System Administration", "description": "System administration", "category": "admin", "resource": "system", "action": "admin"}
-            ]
-            
-            created_permissions = {}
-            for perm_data in permissions:
-                permission = Permission(
-                    id=uuid.uuid4(),
-                    name=perm_data["name"],
-                    display_name=perm_data["display_name"],
-                    description=perm_data["description"],
-                    category=perm_data["category"],
-                    resource=perm_data["resource"],
-                    action=perm_data["action"],
-                    created_at=datetime.utcnow(),
-                    created_by="system"
-                )
-                db.add(permission)
-                created_permissions[perm_data["name"]] = permission
-            
-            # Create super admin role
-            admin_role = Role(
-                id=uuid.uuid4(),
-                name="super_admin",
-                display_name="Super Administrator",
-                description="Super Administrator with full system access",
-                is_system_role=True,
-                created_at=datetime.utcnow(),
-                created_by="system"
-            )
-            db.add(admin_role)
-            
-            # Add all permissions to admin role
-            for permission in created_permissions.values():
-                admin_role.permissions.append(permission)
-            
-            # Create admin user
+            # Create admin user with new permission system
             admin_user = User(
                 id=uuid.uuid4(),
                 username="admin",
@@ -427,22 +347,23 @@ async def init_users():
                 status=UserStatus.ACTIVE.value,
                 is_superuser=True,
                 require_password_change=True,
+                user_type_id="super_admin",  # NEW PERMISSION SYSTEM
+                assigned_province="ALL",     # NEW PERMISSION SYSTEM
+                permission_overrides=["*"],  # NEW PERMISSION SYSTEM - Full access
                 created_at=datetime.utcnow(),
                 created_by="system"
             )
             db.add(admin_user)
             
-            # Add admin role to user
-            admin_user.roles.append(admin_role)
-            
             db.commit()
             
             return {
                 "status": "success",
-                "message": "Default users created successfully",
+                "message": "Default admin user created with new permission system",
                 "users_created": ["admin"],
                 "default_password": "Admin123!",
                 "note": "Password must be changed on first login",
+                "permission_system": "NEW - dot notation permissions",
                 "timestamp": time.time()
             }
             

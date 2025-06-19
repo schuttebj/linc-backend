@@ -139,15 +139,9 @@ async def login(
             f"IP: {login_data.ip_address or request.client.host}"
         )
         
-        # Get user permissions and roles
-        permissions = []
-        roles = []
-        
-        for role in user.roles:
-            roles.append(role.name)
-            for permission in role.permissions:
-                if permission.name not in permissions:
-                    permissions.append(permission.name)
+        # NEW PERMISSION SYSTEM - Get permissions from permission engine
+        permissions = []  # TODO: Get from PermissionEngine.get_user_permissions()
+        roles = []        # LEGACY REMOVED - Use user_type_id instead
         
         # Return login response
         return LoginResponse(
@@ -313,15 +307,9 @@ async def get_current_user_info(
     try:
         # User is already authenticated and loaded via dependency
         
-        # Get user permissions and roles
-        permissions = []
-        roles = []
-        
-        for role in current_user.roles:
-            roles.append(role.name)
-            for permission in role.permissions:
-                if permission.name not in permissions:
-                    permissions.append(permission.name)
+        # NEW PERMISSION SYSTEM - Get permissions from permission engine
+        permissions = []  # TODO: Get from PermissionEngine.get_user_permissions()
+        roles = []        # LEGACY REMOVED - Use user_type_id instead
         
         return UserResponse(
             id=str(current_user.id),

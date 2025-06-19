@@ -384,8 +384,8 @@ class UserProfileResponse(BaseModel):
             user_group={"id": str(user.user_group_id), "name": user.user_group_code} if user.user_group_id else None,
             office={"code": user.office_code} if user.office_code else None,
             
-            roles=[{"id": str(role.id), "name": role.name} for role in user.roles] if user.roles else [],
-            permissions=[perm.name for role in user.roles for perm in role.permissions] if user.roles else [],
+            roles=[],  # LEGACY REMOVED - Use new permission system
+            permissions=[],  # LEGACY REMOVED - Use new permission system
             location_assignments=[{"id": str(loc.id), "name": loc.location_name} for loc in user.get_accessible_locations()] if hasattr(user, 'get_accessible_locations') else [],
             
             language=user.language,
@@ -519,7 +519,7 @@ class UserValidationResult(BaseModel):
 
 class PermissionCheckResult(BaseModel):
     """Permission check result"""
-    has_permission: bool = Field(..., description="Permission check result")
+    has_permission: bool = Field(..., description="Permission check result - NEW SYSTEM")
     permission_name: str = Field(..., description="Permission being checked")
     user_id: str = Field(..., description="User being checked")
     reason: Optional[str] = Field(None, description="Reason for permission grant/denial")
