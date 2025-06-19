@@ -12,8 +12,8 @@ from fastapi import HTTPException, status
 from passlib.context import CryptContext
 import structlog
 
-from app.models.user import User, UserSession, UserStatus, UserType, IDType, Role  # TEMPORARY - Role is legacy model for migration
-from app.models.user_group import UserGroup
+from app.models.user import User, UserSession, UserStatus, UserType, IDType
+from app.models.region import Region
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter
 )
@@ -56,18 +56,18 @@ class CRUDUserManagement:
                 detail="V06004: Email already exists"
             )
         
-        # V06001: Validate user group if provided
-        user_group = None
+        # V06001: Validate region if provided
+        region = None
         user_number = None
         if user_data.user_group_code:
-            user_group = db.query(UserGroup).filter(
-                UserGroup.user_group_code == user_data.user_group_code,
-                UserGroup.is_active == True
+            region = db.query(Region).filter(
+                Region.user_group_code == user_data.user_group_code,
+                Region.is_active == True
             ).first()
-            if not user_group:
+            if not region:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="V06001: User Group must be active and valid"
+                    detail="V06001: Region must be active and valid"
                 )
             # Generate user number
             user_number = self._generate_user_number(db, user_data.user_group_code)
@@ -119,20 +119,17 @@ class CRUDUserManagement:
             
             # Audit
             created_by=created_by,
-            user_group_id=user_group.id if user_group else None
+            region_id=region.id if region else None
         )
         
         db.add(user)
         db.flush()
         
-        # Assign roles
-        if user_data.role_ids:
-            roles = db.query(Role).filter(
-                Role.id.in_(user_data.role_ids),
-                Role.is_active == True
-            ).all()
-            for role in roles:
-                user.roles.append(role)
+        # TODO: Implement new permission system assignments here
+        # Legacy role assignment removed - use new permission system
+        # if user_data.permission_assignments:
+        #     # Assign regions, offices, and permission overrides
+        #     pass
         
         db.commit()
         db.refresh(user)
@@ -150,8 +147,7 @@ class CRUDUserManagement:
         
         if load_relationships:
             query = query.options(
-                selectinload(User.user_group),
-                selectinload(User.roles),
+                selectinload(User.region),
                 selectinload(User.location_assignments)
             )
         
@@ -176,8 +172,7 @@ class CRUDUserManagement:
         """List users with filtering and pagination"""
         
         query = db.query(User).options(
-            selectinload(User.user_group),
-            selectinload(User.roles)
+            selectinload(User.region)
         )
         
         # Apply search filters
