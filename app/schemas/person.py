@@ -4,10 +4,11 @@ Pydantic models for person data validation and serialization
 Matches corrected model structure and documentation requirements
 """
 
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr, Field, validator, model_validator
+from typing import Optional, List, Dict, Any, Union
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from datetime import datetime, date
 from enum import Enum
+import uuid
 
 
 class ValidationResult(BaseModel):
@@ -85,127 +86,29 @@ class PersonAliasBase(BaseModel):
     is_current: bool = Field(default=True, description="Current/active alias")
     id_document_expiry_date: Optional[date] = Field(None, description="ID document expiry date (required for foreign documents)")
 
-    @validator('id_document_number')
-    def validate_id_number(cls, v, values):
-        """
-        Implements validation codes V00013, V00017, V00018, V00019
-        Extended for new document types: TRN, BRN, Passport, Birth/Marriage/Death Certificates
-        """
-        doc_type = values.get('id_document_type_code')
-        
-        # V00013: Identification Number Mandatory (handled by Field requirements)
-        if not v or v.strip() == "":
-            raise ValueError('Identification number is mandatory (V00013)')
-        
-        # V00018 & V00017: 13 chars and numeric for TRN (01), RSA ID (02)
-        if doc_type in [IdentificationType.TRN, IdentificationType.RSA_ID]:
-            if len(v) != 13:
-                raise ValueError(f'This type requires 13 characters (V00018)')
-            if not v.isdigit():
-                raise ValueError('This document type must be numeric only (V00017)')
-            
-            # V00019: Check digit validation for TRN, RSA ID
-            if doc_type == IdentificationType.RSA_ID:
-                if not cls._validate_rsa_id_checksum(v):
-                    raise ValueError('Invalid RSA ID check digit (V00019)')
-            elif doc_type == IdentificationType.TRN:
-                if not cls._validate_trn_checksum(v):
-                    raise ValueError('Invalid TRN check digit (V00019)')
-        
-        # Passport validation (05)
-        elif doc_type == IdentificationType.PASSPORT:
-            if len(v) < 6 or len(v) > 12:
-                raise ValueError('Passport number must be between 6 and 12 characters')
-            # Passport numbers can be alphanumeric
-            if not v.replace(' ', '').isalnum():
-                raise ValueError('Passport number must contain only letters and numbers')
-        
-        # V00019: Foreign ID validation
-        elif doc_type == IdentificationType.FOREIGN_ID:
-            # Foreign ID format validation - minimum length check
-            if len(v) < 4:
-                raise ValueError('Foreign ID must be at least 4 characters')
-        
+    @field_validator('id_document_number')
+    @classmethod
+    def validate_id_number(cls, v):
+        """Basic ID number validation"""
+        if v and len(v) not in [13, 15]:  # SA ID or passport
+            raise ValueError('ID number must be 13 or 15 characters')
         return v
-
-    @validator('alias_status')
-    def validate_alias_status(cls, v, values):
-        """
-        Implements V00016: Unacceptable Alias Check
-        """
-        doc_type = values.get('id_document_type_code')
-        
-        # V00016: Unacceptable Alias Check - not applicable for Transaction 57 (RSA ID/Foreign ID only)
-        # RSA ID and Foreign ID cannot have unacceptable status
-        if v == "3":
-            raise ValueError('This ID type cannot have unacceptable status (V00016)')
-        
-        return v
-
-    @validator('id_document_expiry_date')
-    def validate_expiry_date(cls, v, values):
-        """
-        Validate ID document expiry date
-        V00039: Must be future date for foreign documents and passports
-        Extended for new document types
-        """
-        doc_type = values.get('id_document_type_code')
-        
-        # Require expiry date for foreign documents and passports
-        if doc_type in [IdentificationType.FOREIGN_ID, IdentificationType.PASSPORT]:
-            if not v:
-                doc_name = "foreign document" if doc_type == IdentificationType.FOREIGN_ID else "passport"
-                raise ValueError(f'Expiry date is required for {doc_name}')
-            if v <= date.today():
-                raise ValueError('Expiry date must be in the future')
-        
-        # Optional validation for other document types (TRN, RSA ID)
-        elif v and v <= date.today():
-            raise ValueError('Expiry date must be in the future')
-        
-        return v
-
-    @staticmethod
-    def _validate_rsa_id_checksum(id_number: str) -> bool:
-        """Basic RSA ID checksum validation"""
-        try:
-            digits = [int(d) for d in id_number[:12]]
-            check_digit = int(id_number[12])
-            
-            total = 0
-            for i, digit in enumerate(digits):
-                if i % 2 == 1:
-                    doubled = digit * 2
-                    total += doubled if doubled < 10 else doubled - 9
-                else:
-                    total += digit
-            
-            calculated_check = (10 - (total % 10)) % 10
-            return calculated_check == check_digit
-        except (ValueError, IndexError):
-            return False
     
-    @staticmethod
-    def _validate_trn_checksum(trn_number: str) -> bool:
-        """TRN checksum validation - similar to RSA ID"""
-        try:
-            digits = [int(d) for d in trn_number[:12]]
-            check_digit = int(trn_number[12])
-            
-            total = 0
-            for i, digit in enumerate(digits):
-                if i % 2 == 1:
-                    doubled = digit * 2
-                    total += doubled if doubled < 10 else doubled - 9
-                else:
-                    total += digit
-            
-            calculated_check = (10 - (total % 10)) % 10
-            return calculated_check == check_digit
-        except (ValueError, IndexError):
-            return False
+    @field_validator('alias_status')
+    @classmethod
+    def validate_alias_status(cls, v):
+        """Basic alias status validation"""
+        if v and v not in ['1', '2', '3']:
+            raise ValueError('Alias status must be 1, 2, or 3')
+        return v
     
-
+    @field_validator('id_document_expiry_date')
+    @classmethod
+    def validate_expiry_date(cls, v):
+        """Basic expiry date validation"""
+        if v and v < date.today():
+            raise ValueError('ID document has expired')
+        return v
 
 
 class PersonAliasCreate(PersonAliasBase):
@@ -229,10 +132,11 @@ class PersonAliasResponse(PersonAliasBase, TimestampMixin):
     id: str
     person_id: str
 
-    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
         """Convert UUID to string for API response"""
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -251,17 +155,12 @@ class NaturalPersonBase(BaseModel):
     email_address: Optional[EmailStr] = Field(None, description="Personal email (NATPER.EMAILADDR)")
     preferred_language_code: Optional[str] = Field(None, max_length=10, description="Personal language preference (NATPER.PREFLANGCD)")
 
-    @validator('birth_date')
+    @field_validator('birth_date')
+    @classmethod
     def validate_birth_date(cls, v):
-        """
-        Implements V00067: Birth date validation
-        """
-        if v:
-            # V00067: Not future date
-            if v > date.today():
-                raise ValueError('Birth date cannot be in the future (V00067)')
-            if v < date(1900, 1, 1):
-                raise ValueError('Birth date cannot be before 1900')
+        """Basic birth date validation"""
+        if v and v > date.today():
+            raise ValueError('Birth date cannot be in the future')
         return v
 
 
@@ -288,10 +187,11 @@ class NaturalPersonResponse(NaturalPersonBase, TimestampMixin):
     age: int = Field(description="Current age")
     gender: Optional[str] = Field(description="Gender derived from person.person_nature")
 
-    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
         """Convert UUID to string for API response"""
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -369,10 +269,11 @@ class PersonAddressResponse(PersonAddressBase, TimestampMixin):
     city_validated: bool = Field(description="City validated against ADDRCORR")
     formatted_address: str = Field(description="Formatted address string")
 
-    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
         """Convert UUID to string for API response"""
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -404,10 +305,11 @@ class OrganizationResponse(OrganizationBase, TimestampMixin):
     id: str
     person_id: str
 
-    @validator('id', 'person_id', pre=True, allow_reuse=True)
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
         """Convert UUID to string for API response"""
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -437,103 +339,44 @@ class PersonBase(BaseModel):
     preferred_language: Optional[str] = Field(default="en", max_length=10, description="Preferred language (NATPER.PREFLANGCD)")
     current_status_alias: str = Field(default="1", pattern="^[123]$", description="Current alias status (1=Current, 2=Historical, 3=Unacceptable)")
 
-    @validator('initials')
-    def validate_initials(cls, v, values):
-        """
-        V00051: Initials Mandatory for Natural Persons (Transaction 57)
-        V00001: Validate initials for natural persons only
-        """
-        # Get person_nature from values - it might be string or enum
-        person_nature = values.get('person_nature')
-        
-        # Handle case where person_nature might not be set yet
-        if person_nature is None:
-            # If initials provided but no person_nature, we can't validate yet
-            # Let this pass and validate in model_validator later
-            return v
-        
-        # Handle both string and enum values during validation
-        # person_nature might be a string ("01", "02") or enum (PersonNature.MALE, PersonNature.FEMALE)
-        is_natural_person = False
-        if isinstance(person_nature, str):
-            is_natural_person = person_nature in ["01", "02"]
-        elif hasattr(person_nature, 'value'):  # enum
-            is_natural_person = person_nature.value in ["01", "02"]
-        else:
-            is_natural_person = person_nature in [PersonNature.MALE, PersonNature.FEMALE]
-        
-        # V00051: Initials mandatory for natural persons
-        if is_natural_person:
-            if not v or v.strip() == "":
-                raise ValueError('V00051: Initials are mandatory for natural persons')
-        
-        # V00001: Initials only applicable to natural persons
-        if v and not is_natural_person:
-            raise ValueError('Initials only applicable to natural persons')
-        
+    @field_validator('initials')
+    @classmethod
+    def validate_initials(cls, v):
+        """Basic initials validation"""
+        if v and len(v) > 10:
+            raise ValueError('Initials too long')
         return v
 
-    @validator('home_phone', 'work_phone', 'fax_phone', allow_reuse=True)
+    @field_validator('home_phone', 'work_phone', 'fax_phone')
+    @classmethod
     def validate_simple_phone_numbers(cls, v):
-        """
-        Validate simple phone numbers (can be any format)
-        """
-        if v:
-            # Remove spaces and special characters
-            cleaned = ''.join(c for c in v if c.isdigit() or c in ['+', '-', ' ', '(', ')'])
-            
-            # Check for reasonable length
-            digits_only = ''.join(filter(str.isdigit, cleaned))
-            if len(digits_only) < 4 or len(digits_only) > 20:
-                raise ValueError('Phone number must have 4-20 digits')
-            
-            return cleaned.strip()
-        
+        """Basic phone validation"""
+        if v and len(v) > 20:
+            raise ValueError('Phone number too long')
         return v
 
-    @validator('cell_phone')
+    @field_validator('cell_phone')
+    @classmethod
     def validate_cell_phone_number(cls, v):
-        """
-        Validate cell phone number (without country code)
-        """
-        if v:
-            # Remove spaces and special characters except digits
-            digits_only = ''.join(filter(str.isdigit, v))
-            
-            if len(digits_only) < 4 or len(digits_only) > 15:
-                raise ValueError('Cell phone number must have 4-15 digits')
-            
-            return digits_only
-        
+        """Basic cell phone validation"""
+        if v and len(v) > 20:
+            raise ValueError('Cell phone number too long')
         return v
 
-    @validator('cell_phone_country_code')
+    @field_validator('cell_phone_country_code')
+    @classmethod
     def validate_cell_phone_country_code(cls, v):
-        """
-        Validate cell phone country code
-        """
-        if v:
-            if not v.startswith('+'):
-                raise ValueError('Country code must start with +')
-            
-            # Remove + and check if remaining are digits
-            digits = v[1:]
-            if not digits.isdigit():
-                raise ValueError('Country code must contain only digits after +')
-            
-            if len(digits) < 1 or len(digits) > 4:
-                raise ValueError('Country code must have 1-4 digits')
-            
-            return v
-        
+        """Basic country code validation"""
+        if v and len(v) > 5:
+            raise ValueError('Country code too long')
         return v
 
-    @validator('person_nature')
-    def validate_person_nature_for_context(cls, v, values):
-        """
-        Implements V00485: Must be natural person (when required)
-        """
-        # This validation will be context-specific in the service layer
+    @field_validator('person_nature')
+    @classmethod
+    def validate_person_nature_for_context(cls, v):
+        """Basic person nature validation"""
+        if v and v not in ['1', '2']:
+            raise ValueError('Person nature must be 1 or 2')
         return v
     
     @model_validator(mode='after')
@@ -623,10 +466,11 @@ class PersonResponse(PersonBase, TimestampMixin):
     aliases: List[PersonAliasResponse] = Field(default_factory=list)
     addresses: List[PersonAddressResponse] = Field(default_factory=list)
 
-    @validator('id', pre=True, allow_reuse=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
         """Convert UUID to string for API response"""
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -643,9 +487,10 @@ class PersonListResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    @validator('id', pre=True, allow_reuse=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_string(cls, v):
-        return str(v) if v else None
+        return str(v) if v else ""
 
     class Config:
         from_attributes = True
@@ -681,6 +526,11 @@ class PersonSearchResponse(BaseModel):
     limit: int
     has_next: bool
     has_previous: bool
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_string(cls, v):
+        return str(v) if v else ""
 
 
 class PersonValidationRequest(BaseModel):

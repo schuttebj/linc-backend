@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, root_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
+import uuid
 
 from ..models.license import ApplicationStatus, LicenseType
 
@@ -15,7 +16,8 @@ class LicenseApplicationBase(BaseModel):
     medical_required: bool = Field(False, description="Whether medical certificate is required")
     notes: Optional[str] = Field(None, description="Additional notes")
     
-    @validator('application_type')
+    @field_validator('application_type')
+    @classmethod
     def validate_application_type(cls, v):
         valid_types = ['NEW', 'RENEWAL', 'UPGRADE', 'DUPLICATE']
         if v not in valid_types:
@@ -34,7 +36,8 @@ class LicenseApplicationCreate(LicenseApplicationBase):
     medical_certificate_number: Optional[str] = Field(None, description="Medical certificate number if available")
     medical_certificate_date: Optional[date] = Field(None, description="Medical certificate date")
     
-    @validator('country_code')
+    @field_validator('country_code')
+    @classmethod
     def validate_country_code(cls, v):
         if len(v) != 2:
             raise ValueError('Country code must be 2 characters')
@@ -56,7 +59,8 @@ class LicenseApplicationUpdate(BaseModel):
     notes: Optional[str] = Field(None, description="Additional notes")
     rejection_reason: Optional[str] = Field(None, description="Reason for rejection")
     
-    @validator('test_result')
+    @field_validator('test_result')
+    @classmethod
     def validate_test_result(cls, v):
         if v is not None:
             valid_results = ['PASS', 'FAIL', 'PENDING']
@@ -64,7 +68,8 @@ class LicenseApplicationUpdate(BaseModel):
                 raise ValueError(f'Test result must be one of: {valid_results}')
         return v
     
-    @validator('test_score')
+    @field_validator('test_score')
+    @classmethod
     def validate_test_score(cls, v):
         if v is not None and (v < 0 or v > 100):
             raise ValueError('Test score must be between 0 and 100')
@@ -137,7 +142,8 @@ class LicenseCardBase(BaseModel):
     card_type: str = Field("STANDARD", description="STANDARD, DUPLICATE, REPLACEMENT")
     card_template: str = Field("ISO_18013", description="Card template standard")
     
-    @validator('card_type')
+    @field_validator('card_type')
+    @classmethod
     def validate_card_type(cls, v):
         valid_types = ['STANDARD', 'DUPLICATE', 'REPLACEMENT']
         if v not in valid_types:
@@ -203,7 +209,8 @@ class ApplicationPaymentBase(BaseModel):
     amount: Decimal = Field(..., description="Payment amount", gt=0)
     payment_method: str = Field(..., description="CASH, CARD, BANK_TRANSFER")
     
-    @validator('payment_method')
+    @field_validator('payment_method')
+    @classmethod
     def validate_payment_method(cls, v):
         valid_methods = ['CASH', 'CARD', 'BANK_TRANSFER']
         if v not in valid_methods:

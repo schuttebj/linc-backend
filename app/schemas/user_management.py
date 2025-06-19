@@ -6,7 +6,7 @@ Implements user profiles, user groups, administration marks, and session managem
 
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, EmailStr, validator, Field, root_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from enum import Enum
 import uuid
 import re
@@ -80,7 +80,8 @@ class PersonalDetailsBase(BaseModel):
     phone_number: Optional[str] = Field(None, max_length=20, description="Contact phone number")
     alternative_phone: Optional[str] = Field(None, max_length=20, description="Alternative phone number")
     
-    @validator('id_number')
+    @field_validator('id_number')
+    @classmethod
     def validate_id_number(cls, v, values):
         """Validate ID number based on ID type"""
         id_type = values.get('id_type')
@@ -93,7 +94,8 @@ class PersonalDetailsBase(BaseModel):
         
         return v
     
-    @validator('phone_number', 'alternative_phone')
+    @field_validator('phone_number', 'alternative_phone')
+    @classmethod
     def validate_phone_number(cls, v):
         """Validate South African phone number format"""
         if v is not None:
@@ -110,7 +112,8 @@ class GeographicAssignmentBase(BaseModel):
     province_code: str = Field(..., min_length=2, max_length=2, description="Province code")
     region: Optional[str] = Field(None, max_length=100, description="Regional assignment")
     
-    @validator('province_code')
+    @field_validator('province_code')
+    @classmethod
     def validate_province_code(cls, v):
         """Validate South African province codes"""
         valid_provinces = ['EC', 'FS', 'GP', 'KZN', 'LP', 'MP', 'NC', 'NW', 'WC']
@@ -149,21 +152,24 @@ class UserProfileBase(BaseModel):
     timezone: str = Field("Africa/Johannesburg", max_length=50, description="User timezone")
     date_format: str = Field("YYYY-MM-DD", max_length=20, description="Preferred date format")
     
-    @validator('user_group_code')
+    @field_validator('user_group_code')
+    @classmethod
     def validate_user_group_code(cls, v):
         """Validate user group code format"""
         if not re.match(r'^[A-Z]{2}\d{2}$', v):
             raise ValueError('User group code must be format LLNN (e.g., WC01, GP03)')
         return v
     
-    @validator('office_code')
+    @field_validator('office_code')
+    @classmethod
     def validate_office_code(cls, v):
         """Validate office code format"""
         if not re.match(r'^[A-Z]$', v):
             raise ValueError('Office code must be a single uppercase letter (A-Z)')
         return v
     
-    @validator('user_name')
+    @field_validator('user_name')
+    @classmethod
     def validate_user_name(cls, v):
         """Validate user name format"""
         if not re.match(r'^[a-zA-Z0-9\s\.\-\']+$', v):
@@ -188,7 +194,8 @@ class UserProfileCreate(UserProfileBase):
     require_password_change: bool = Field(True, description="Require password change on first login")
     require_2fa: bool = Field(False, description="Require two-factor authentication")
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         """Validate password strength"""
         if len(v) < 8:
@@ -203,7 +210,8 @@ class UserProfileCreate(UserProfileBase):
             raise ValueError('Password must contain at least one special character')
         return v
     
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def validate_username(cls, v):
         """Validate username format"""
         if not re.match(r'^[a-zA-Z0-9_\-\.]+$', v):
@@ -299,13 +307,15 @@ class UserProfileResponse(BaseModel):
     created_by: Optional[str] = None
     last_login_at: Optional[datetime] = None
     
-    @validator('id', pre=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
         return v
     
-    @validator('personal_details', pre=True)
+    @field_validator('personal_details', mode='before')
+    @classmethod
     def build_personal_details(cls, v, values):
         """Build personal details from flat UserProfile model"""
         if isinstance(v, dict):
@@ -324,7 +334,8 @@ class UserProfileResponse(BaseModel):
             )
         return v
     
-    @validator('geographic_assignment', pre=True)
+    @field_validator('geographic_assignment', mode='before')
+    @classmethod
     def build_geographic_assignment(cls, v, values):
         """Build geographic assignment from flat UserProfile model"""
         if isinstance(v, dict):
@@ -429,7 +440,8 @@ class UserSessionResponse(UserSessionBase):
     user_group_display: str = Field(..., description="User group display name")
     office_display: str = Field(..., description="Office display name")
     
-    @validator('id', 'user_id', pre=True)
+    @field_validator('id', 'user_id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -543,4 +555,26 @@ class UserExportResponse(BaseModel):
     file_url: Optional[str] = Field(None, description="Download URL when ready")
     created_at: datetime = Field(..., description="Export creation time")
     estimated_completion: Optional[datetime] = Field(None, description="Estimated completion time")
-    record_count: int = Field(0, description="Number of records to export") 
+    record_count: int = Field(0, description="Number of records to export")
+
+class UserSystemResponse(BaseModel):
+    """User system response schema"""
+    id: str = ""
+    personal_details: Optional[Dict[str, Any]] = None
+    geographic_assignment: Optional[Dict[str, Any]] = None
+    user_account: Optional[Dict[str, Any]] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
+    # Removed complex computed field validators to fix callable schema error
+    # These will be computed in the service layer instead
+    
+    class Config:
+        from_attributes = True 
