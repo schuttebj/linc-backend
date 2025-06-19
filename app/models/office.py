@@ -161,6 +161,7 @@ class Office(BaseModel):
     # Relationships
     region = relationship("Region", back_populates="offices")
     user_assignments = relationship("UserLocationAssignment", back_populates="office")
+    resources = relationship("LocationResource", back_populates="office")
     
     # Table constraints
     __table_args__ = (

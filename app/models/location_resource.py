@@ -37,9 +37,9 @@ class ResourceStatus(PythonEnum):
 
 class LocationResource(BaseModel):
     """
-    Location Resource Model - Equipment and Asset Management
+    Office Resource Model - Equipment and Asset Management
     
-    Tracks physical and digital resources available at each location.
+    Tracks physical and digital resources available at each office.
     Supports capacity planning, maintenance scheduling, and resource allocation.
     
     Features:
@@ -57,9 +57,9 @@ class LocationResource(BaseModel):
     resource_name = Column(String(100), nullable=False,
                           comment="Resource display name")
     
-    # Location relationship
-    location_id = Column(UUID(as_uuid=True), ForeignKey('locations.id'), nullable=False,
-                        comment="Parent location")
+    # Office relationship  
+    office_id = Column(UUID(as_uuid=True), ForeignKey('offices.id'), nullable=False,
+                      comment="Parent office")
     
     # Resource classification
     resource_type = Column(String(20), nullable=False,
@@ -129,7 +129,7 @@ class LocationResource(BaseModel):
     updated_by = Column(String(100), nullable=True)
     
     # Relationships
-    location = relationship("Location", back_populates="resources")
+    office = relationship("Office", back_populates="resources")
     
     def __repr__(self):
         return f"<LocationResource(code='{self.resource_code}', name='{self.resource_name}', type='{self.resource_type}')>"
@@ -227,7 +227,7 @@ class LocationResource(BaseModel):
         return float(self.acquisition_cost) * (1 - total_depreciation)
     
     @staticmethod
-    def generate_resource_code(location_code: str, resource_type: str, sequence: int = 1) -> str:
-        """Generate a resource code based on location and type"""
+    def generate_resource_code(office_code: str, resource_type: str, sequence: int = 1) -> str:
+        """Generate a resource code based on office and type"""
         type_prefix = resource_type[:3].upper()
-        return f"{location_code}-{type_prefix}-{sequence:03d}" 
+        return f"{office_code}-{type_prefix}-{sequence:03d}" 
