@@ -11,10 +11,12 @@ from .license import (
     ApplicationStatus,
     LicenseType
 )
-from .user import User, UserAuditLog, UserStatus, UserSession
-# LEGACY IMPORTS REMOVED - Role and Permission models no longer available
-# Use new permission system: from .permission_system import UserType, RegionRole, OfficeRole
-# UserProfile functionality consolidated into User model
+from .user import (
+    User, UserAuditLog, UserStatus, UserSession,
+    Role, Permission, UserType,  # TEMPORARY - For migration period
+    RegionRole, OfficeRole, UserRegionAssignment, UserOfficeAssignment,
+    user_roles, role_permissions  # TEMPORARY - For migration period
+)
 from .audit import AuditLog, FileMetadata
 
 # Location Management Models (NEW)
@@ -37,8 +39,15 @@ __all__ = [
     "ApplicationStatus",
     "LicenseType",
     "User",
-    # "Role",  # REMOVED - Use new permission system
-    # "Permission",  # REMOVED - Use new permission system
+    "Role",  # TEMPORARY - For migration period
+    "Permission",  # TEMPORARY - For migration period
+    "UserType",
+    "RegionRole", 
+    "OfficeRole",
+    "UserRegionAssignment",
+    "UserOfficeAssignment",
+    "user_roles",  # TEMPORARY - For migration period
+    "role_permissions",  # TEMPORARY - For migration period
     "UserAuditLog",
     "UserStatus",
     "UserSession",

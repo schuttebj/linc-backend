@@ -484,21 +484,14 @@ class UserService:
     
     # Authorization Methods
     def check_permission(self, user: User, permission_name: str) -> bool:
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy permission checking removed. Use PermissionEngine instead.\n"
-            "from app.core.permission_engine import PermissionEngine\n"
-            "engine = PermissionEngine()\n"
-            "has_perm = await engine.check_permission(user.id, 'person.register')"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy check_permission() method. Migrate to PermissionEngine.check_permission()")
+        return user.has_permission(permission_name)
     
     def check_role(self, user: User, role_name: str) -> bool:
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy role checking removed. Use new permission system.\n"
-            "Check user assignments: user.region_assignments and user.office_assignments\n"
-            "Or use permission checking: PermissionEngine.check_permission()"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy check_role() method. Migrate to new permission system")
+        return user.has_role(role_name)
     
     async def get_user_permissions(self, user_id: str):
         """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""

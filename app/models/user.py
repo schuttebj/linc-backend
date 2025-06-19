@@ -4,7 +4,7 @@ Implements user authentication and authorization system
 UPDATED: Now uses simplified 4-tier permission system - legacy permissions removed
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, JSON, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -412,4 +412,97 @@ class UserSession(BaseModel):
     def office_display(self) -> str:
         """Display office information from user group and office code"""
         # Extract office code from workstation or user data
-        return f"{self.user_group_code}{self.workstation_id[-1] if len(self.workstation_id) > 0 else 'A'}" 
+        return f"{self.user_group_code}{self.workstation_id[-1] if len(self.workstation_id) > 0 else 'A'}"
+
+# TEMPORARY LEGACY MODELS - FOR MIGRATION PERIOD ONLY
+# These will be removed once all files are migrated to new permission system
+
+# Association tables for many-to-many relationships
+user_roles = Table(
+    'user_roles',
+    BaseModel.metadata,
+    Column('user_id', UUID(as_uuid=True), ForeignKey('users.id'), primary_key=True),
+    Column('role_id', UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True),
+    comment="LEGACY - User to Role assignments - will be removed"
+)
+
+role_permissions = Table(
+    'role_permissions', 
+    BaseModel.metadata,
+    Column('role_id', UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True),
+    Column('permission_id', UUID(as_uuid=True), ForeignKey('permissions.id'), primary_key=True),
+    comment="LEGACY - Role to Permission assignments - will be removed"
+)
+
+class Role(BaseModel):
+    """LEGACY Role Model - TEMPORARY FOR MIGRATION ONLY"""
+    __tablename__ = "roles"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    display_name = Column(String(200), nullable=True)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(String(100), nullable=True)
+    
+    # Legacy relationships
+    users = relationship("User", secondary=user_roles, back_populates="roles")
+    permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
+
+class Permission(BaseModel):
+    """LEGACY Permission Model - TEMPORARY FOR MIGRATION ONLY"""
+    __tablename__ = "permissions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    display_name = Column(String(200), nullable=True)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), nullable=True)
+    resource = Column(String(100), nullable=True)
+    action = Column(String(50), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+    created_by = Column(String(100), nullable=True)
+    
+    # Legacy relationships
+    roles = relationship("Role", secondary=role_permissions, back_populates="permissions")
+
+# Add legacy relationships back to User model temporarily
+User.roles = relationship("Role", secondary=user_roles, back_populates="users")
+
+# Restore legacy methods temporarily (but log warnings)
+def _legacy_has_permission(self, permission_name: str) -> bool:
+    """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+    print(f"WARNING: Using legacy has_permission() method. Migrate to PermissionEngine.check_permission()")
+    return any(
+        permission.name == permission_name 
+        for role in self.roles 
+        for permission in role.permissions
+        if role.is_active and permission.is_active
+    )
+
+def _legacy_has_role(self, role_name: str) -> bool:
+    """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+    print(f"WARNING: Using legacy has_role() method. Migrate to new permission system")
+    return any(role.name == role_name for role in self.roles if role.is_active)
+
+def _legacy_permissions_property(self):
+    """LEGACY PROPERTY - TEMPORARY FOR MIGRATION"""
+    print(f"WARNING: Using legacy permissions property. Migrate to PermissionEngine.get_user_permissions()")
+    permissions = set()
+    for role in self.roles:
+        if role.is_active:
+            for permission in role.permissions:
+                if permission.is_active:
+                    permissions.add(permission)
+    return list(permissions)
+
+# Replace the broken methods with working legacy versions temporarily
+User.has_permission = _legacy_has_permission
+User.has_role = _legacy_has_role
+User.permissions = property(_legacy_permissions_property)
+
+# END TEMPORARY LEGACY MODELS 
