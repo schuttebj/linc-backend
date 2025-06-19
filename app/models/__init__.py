@@ -14,9 +14,7 @@ from .user_location_assignment import UserLocationAssignment, AssignmentType, As
 # NEW PERMISSION SYSTEM IMPORTS - TEMPORARILY COMMENTED TO BREAK CIRCULAR IMPORT
 # from .user_type import UserType, UserRegionAssignment, UserOfficeAssignment
 
-# LEGACY MODELS - TEMPORARY FOR MIGRATION
-# These will be removed once migration is complete
-from .user import Role, Permission  # TEMPORARY - Legacy models for migration
+# LEGACY MODELS REMOVED - Migration complete
 
 __all__ = [
     "BaseModel",
@@ -77,8 +75,4 @@ __all__ = [
     # Permission system - Temporarily commented
     # "UserRegionAssignment",
     # "UserOfficeAssignment",
-    
-    # Legacy (temporary)
-    "Role",
-    "Permission",
 ] 
