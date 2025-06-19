@@ -527,11 +527,6 @@ class PersonSearchResponse(BaseModel):
     has_next: bool
     has_previous: bool
 
-    @field_validator('id', mode='before')
-    @classmethod
-    def convert_uuid_to_string(cls, v):
-        return str(v) if v else ""
-
 
 class PersonValidationRequest(BaseModel):
     """Schema for person validation request"""
