@@ -413,83 +413,36 @@ class UserService:
             "await service.assign_region_role(user_id, region_id, role_code)"
         )
     
-    async def get_roles(self) -> List[Role]:
-        """Get all active roles"""
-        try:
-            roles = self.db.query(Role).options(
-                selectinload(Role.permissions)
-            ).filter(Role.is_active == True).order_by(Role.name).all()
-            
-            return roles
-            
-        except Exception as e:
-            logger.error("Error getting roles", error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error retrieving roles"
-            )
+    async def get_roles(self):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy role management removed. Use new permission system instead.\n"
+            "Roles are now predefined: RegionRole and OfficeRole models.\n"
+            "Use: from app.services.permission_service import PermissionService\n"
+            "service = PermissionService()\n"
+            "roles = await service.get_region_roles() or await service.get_office_roles()"
+        )
     
-    # Permission Management Methods
-    async def create_permission(self, permission_data: PermissionCreate, created_by: str = None) -> Permission:
-        """Create new permission"""
-        try:
-            # Check if permission name already exists
-            existing_permission = self.db.query(Permission).filter(
-                Permission.name == permission_data.name
-            ).first()
-            if existing_permission:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Permission name already exists"
-                )
-            
-            permission = Permission(
-                name=permission_data.name,
-                display_name=permission_data.display_name,
-                description=permission_data.description,
-                category=permission_data.category,
-                resource=permission_data.resource,
-                action=permission_data.action,
-                is_active=permission_data.is_active,
-                created_by=created_by
-            )
-            
-            self.db.add(permission)
-            self.db.commit()
-            self.db.refresh(permission)
-            
-            await self._log_audit(
-                None, "permission_created", "permission_management",
-                success=True, details=f"Permission created: {permission.name}"
-            )
-            
-            return permission
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            self.db.rollback()
-            logger.error("Error creating permission", permission_name=permission_data.name, error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error creating permission"
-            )
+    # LEGACY PERMISSION MANAGEMENT METHODS - REMOVED TO FORCE MIGRATION
+    async def create_permission(self, permission_data, created_by: str = None):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy permission management removed. Use new permission system instead.\n"
+            "Permissions are now predefined in RegionRole and OfficeRole models.\n"
+            "Use: from app.services.permission_service import PermissionService\n"
+            "service = PermissionService()\n"
+            "await service.update_role_permissions(role_id, new_permissions)"
+        )
     
-    async def get_permissions(self) -> List[Permission]:
-        """Get all active permissions"""
-        try:
-            permissions = self.db.query(Permission).filter(
-                Permission.is_active == True
-            ).order_by(Permission.category, Permission.name).all()
-            
-            return permissions
-            
-        except Exception as e:
-            logger.error("Error getting permissions", error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error retrieving permissions"
-            )
+    async def get_permissions(self):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy permission management removed. Use new permission system instead.\n"
+            "Permissions are now predefined in RegionRole and OfficeRole models.\n"
+            "Use: from app.services.permission_service import PermissionService\n"
+            "service = PermissionService()\n"
+            "permissions = await service.get_all_permissions()"
+        )
     
     # Password Management Methods
     async def change_password(self, user_id: str, current_password: str, new_password: str) -> bool:
@@ -547,44 +500,24 @@ class UserService:
             "Or use permission checking: PermissionEngine.check_permission()"
         )
     
-    async def get_user_permissions(self, user_id: str) -> List[Permission]:
-        """Get list of permission objects for a specific user"""
-        try:
-            user = await self.get_user_by_id(user_id)
-            if not user:
-                return []
-            
-            permissions = set()
-            
-            if user.is_superuser:
-                # Superuser has all permissions
-                all_permissions = self.db.query(Permission).filter(Permission.is_active == True).all()
-                return all_permissions
-            
-            for role in user.roles:
-                if role.is_active:
-                    for permission in role.permissions:
-                        if permission.is_active:
-                            permissions.add(permission)
-            
-            return list(permissions)
-            
-        except Exception as e:
-            logger.error("Error getting user permissions", user_id=user_id, error=str(e))
-            return []
+    async def get_user_permissions(self, user_id: str):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy user permission lookup removed. Use PermissionEngine instead.\n"
+            "from app.core.permission_engine import PermissionEngine\n"
+            "engine = PermissionEngine()\n"
+            "permissions = await engine.get_user_permissions(user_id)"
+        )
     
-    async def get_user_roles(self, user_id: str) -> List[Role]:
-        """Get list of role objects for a specific user"""
-        try:
-            user = await self.get_user_by_id(user_id)
-            if not user:
-                return []
-            
-            return [role for role in user.roles if role.is_active]
-            
-        except Exception as e:
-            logger.error("Error getting user roles", user_id=user_id, error=str(e))
-            return []
+    async def get_user_roles(self, user_id: str):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy user role lookup removed. Use new permission system instead.\n"
+            "from app.services.permission_service import PermissionService\n"
+            "service = PermissionService()\n"
+            "region_roles = await service.get_user_region_assignments(user_id)\n"
+            "office_roles = await service.get_user_office_assignments(user_id)"
+        )
     
     # Audit Methods
     async def _log_audit(
