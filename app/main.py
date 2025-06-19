@@ -239,7 +239,7 @@ async def add_missing_permissions():
     """Add any missing permissions to existing database"""
     try:
         from app.core.database import get_db_context
-        from app.models.user import Permission
+        from app.models.user import Permission  # TEMPORARY - Legacy model for migration
         from datetime import datetime
         import uuid
         
@@ -313,7 +313,7 @@ async def init_users():
     """Create default users and roles - ADMIN ONLY"""
     try:
         from app.core.database import get_db_context
-        from app.models.user import User, Role, Permission, UserStatus
+        from app.models.user import User, Role, Permission, UserStatus  # TEMPORARY - Legacy models for migration
         from app.core.security import get_password_hash
         from datetime import datetime
         import uuid

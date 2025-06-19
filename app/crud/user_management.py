@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 from passlib.context import CryptContext
 import structlog
 
-from app.models.user import User, UserSession, UserStatus, UserType, IDType, Role
+from app.models.user import User, UserSession, UserStatus, UserType, IDType, Role  # TEMPORARY - Role is legacy model for migration
 from app.models.user_group import UserGroup
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter

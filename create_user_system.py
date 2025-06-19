@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.core.database import engine
-from app.models.user import User, Role, Permission, UserStatus, user_roles, role_permissions
+from app.models.user import User, Role, Permission, UserStatus, user_roles, role_permissions  # TEMPORARY - Legacy models for migration
 from app.schemas.user import UserCreate, RoleCreate, PermissionCreate
 from app.core.security import get_password_hash
 from datetime import datetime
