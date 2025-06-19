@@ -1,10 +1,10 @@
 """
 User Management Models
 Implements user authentication and authorization system
-Based on documentation requirements for role-based access control and Users_Locations.md specifications
+UPDATED: Now uses simplified 4-tier permission system - legacy permissions removed
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -13,22 +13,6 @@ import uuid
 
 from app.models.base import BaseModel
 from app.models.enums import ValidationStatus
-
-# Association table for many-to-many relationship between users and roles
-user_roles = Table(
-    'user_roles',
-    BaseModel.metadata,
-    Column('user_id', UUID(as_uuid=True), ForeignKey('users.id'), primary_key=True),
-    Column('role_id', UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True)
-)
-
-# Association table for many-to-many relationship between roles and permissions
-role_permissions = Table(
-    'role_permissions', 
-    BaseModel.metadata,
-    Column('role_id', UUID(as_uuid=True), ForeignKey('roles.id'), primary_key=True),
-    Column('permission_id', UUID(as_uuid=True), ForeignKey('permissions.id'), primary_key=True)
-)
 
 class UserStatus(PythonEnum):
     """User account status from documentation"""
@@ -67,18 +51,18 @@ class User(BaseModel):
     """
     User account model for system authentication and authorization
     
-    Implements user management requirements from documentation:
-    - Role-based access control
-    - User authorization for transactions
-    - Audit trail requirements
-    - Users_Locations.md specifications (Sections 1.1.1-1.1.3)
+    UPDATED: Now uses simplified 4-tier permission system
+    - System types: super_admin, national_help_desk, provincial_help_desk, standard_user
+    - Region assignments with roles
+    - Office assignments with roles
+    - Individual permission overrides
     """
     __tablename__ = "users"
     
     # Primary identification
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     
-    # Legacy compatibility fields (NEW - from Users_Locations.md)
+    # Legacy compatibility fields (maintained for migration)
     user_number = Column(String(7), nullable=True, unique=True, index=True,
                         comment="Legacy user number format: 4+3 chars (UserGrpCd + sequence)")
     
@@ -97,7 +81,7 @@ class User(BaseModel):
     user_type_code = Column(String(1), nullable=False, default="1",
                            comment="User Type Code (NUM) - 1=Standard, 2=System, etc.")
     
-    # Personal identification (NEW - from Users_Locations.md)
+    # Personal identification
     id_type = Column(String(2), nullable=True,
                     comment="ID Type: 01=TRN, 02=SA ID, 03=Foreign ID, 04=Passport")
     id_number = Column(String(20), nullable=True, index=True,
@@ -105,13 +89,13 @@ class User(BaseModel):
     alternative_phone = Column(String(20), nullable=True,
                               comment="Alternative phone number")
     
-    # Personal information (UPDATED)
+    # Personal information
     first_name = Column(String(100), nullable=True, comment="User's first name")
     last_name = Column(String(100), nullable=True, comment="User's last name")
     full_name = Column(String(200), nullable=True, comment="Full legal name")
     display_name = Column(String(200), nullable=True, comment="Display name for UI")
     
-    # Account status and settings (UPDATED)
+    # Account status and settings
     status = Column(String(20), nullable=False, default=UserStatus.PENDING_ACTIVATION.value, comment="Account status")
     is_active = Column(Boolean, nullable=False, default=True, comment="Active flag")
     is_superuser = Column(Boolean, nullable=False, default=False, comment="Superuser flag")
@@ -123,22 +107,30 @@ class User(BaseModel):
     department = Column(String(100), nullable=True, comment="Department or division")
     job_title = Column(String(100), nullable=True, comment="Job title/position")
     
-    # Infrastructure assignment (NEW - for DLTC users)
+    # Infrastructure assignment (for DLTC users)
     infrastructure_number = Column(String(20), nullable=True,
                                   comment="Infrastructure number for DLTC users")
     
-    # Geographic and jurisdiction assignment (UPDATED)
+    # Geographic and jurisdiction assignment
     country_code = Column(String(3), nullable=False, default='ZA', comment="Assigned country code")
     province_code = Column(String(2), nullable=True, index=True, comment="Province code assignment")
     province = Column(String(100), nullable=True, comment="Assigned province/state")
     region = Column(String(100), nullable=True, comment="Assigned region")
     office_location = Column(String(200), nullable=True, comment="Physical office location")
     
-    # User group assignment (UPDATED)
-    user_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=True,
-                          comment="Primary user group assignment")
+    # NEW PERMISSION SYSTEM FIELDS
+    user_type_id = Column(UUID(as_uuid=True), ForeignKey('user_types.id'), nullable=False,
+                         comment="System type: super_admin, national_help_desk, provincial_help_desk, standard_user")
+    assigned_province = Column(String(2), nullable=True, index=True,
+                              comment="Assigned province for provincial help desk users")
+    permission_overrides = Column(JSON, nullable=True,
+                                comment="Individual permission overrides - rare usage")
     
-    # Security settings (UPDATED)
+    # Legacy user group (deprecated but kept for migration)
+    user_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=True,
+                          comment="Legacy user group assignment - deprecated")
+    
+    # Security settings
     require_password_change = Column(Boolean, nullable=False, default=True, comment="Force password change on next login")
     require_2fa = Column(Boolean, nullable=False, default=False, comment="Require two-factor authentication")
     password_expires_at = Column(DateTime, nullable=True, comment="Password expiration date")
@@ -174,11 +166,15 @@ class User(BaseModel):
     password_reset_token = Column(String(255), nullable=True, comment="Password reset token")
     password_reset_expires = Column(DateTime, nullable=True, comment="Password reset expiration")
     
-    # Relationships
-    roles = relationship("Role", secondary=user_roles, back_populates="users")
+    # NEW PERMISSION SYSTEM RELATIONSHIPS
+    user_type = relationship("UserType", back_populates="users")
+    region_assignments = relationship("UserRegionAssignment", back_populates="user", cascade="all, delete-orphan")
+    office_assignments = relationship("UserOfficeAssignment", back_populates="user", cascade="all, delete-orphan")
+    
+    # Existing relationships (maintained)
     audit_logs = relationship("UserAuditLog", back_populates="user")
-    user_group = relationship("UserGroup", back_populates="users")
-    location_assignments = relationship("UserLocationAssignment", back_populates="user", cascade="all, delete-orphan")
+    user_group = relationship("UserGroup", back_populates="users")  # Legacy - deprecated
+    location_assignments = relationship("UserLocationAssignment", back_populates="user", cascade="all, delete-orphan")  # Legacy - deprecated
     user_sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
@@ -189,6 +185,8 @@ class User(BaseModel):
         """Get user's full display name"""
         if self.user_name:
             return self.user_name
+        elif self.display_name:
+            return self.display_name
         elif self.full_name:
             return self.full_name
         elif self.first_name and self.last_name:
@@ -198,184 +196,113 @@ class User(BaseModel):
     
     @property
     def legacy_user_number(self) -> str:
-        """Generate legacy user number format (UserGrpCd + 3-digit sequence)"""
+        """Generate legacy user number format (UserGrpCd + sequence)"""
         if self.user_number:
             return self.user_number
-        
-        # Generate from user group code + sequence
-        if self.user_group_code:
-            return f"{self.user_group_code}001"  # Placeholder logic
-        
-        return "UNKNOWN"
+        elif self.user_group_code:
+            # Extract sequence from ID for backward compatibility
+            sequence = str(self.id)[-3:] if self.id else "001"
+            return f"{self.user_group_code}{sequence}"
+        else:
+            return f"U{str(self.id)[-6:]}" if self.id else "U000001"
     
     @property
     def is_locked(self) -> bool:
-        """Check if account is currently locked"""
-        if self.locked_until:
-            return self.locked_until > func.now()
-        return False
+        """Check if user account is locked"""
+        return (self.status == UserStatus.LOCKED.value or 
+                (self.locked_until and self.locked_until > func.now()))
+    
+    # LEGACY METHODS - REMOVED TO FORCE MIGRATION
+    # These methods will now raise errors to force developers to use new permission system
     
     def has_permission(self, permission_name: str) -> bool:
-        """Check if user has specific permission"""
-        if self.is_superuser:
-            return True
-        
-        for role in self.roles:
-            if role.is_active:
-                for permission in role.permissions:
-                    if permission.is_active and permission.name == permission_name:
-                        return True
-        return False
+        """LEGACY METHOD - REMOVED"""
+        raise NotImplementedError(
+            "Legacy permission checking removed. Use PermissionEngine.check_permission() instead.\n"
+            "from app.core.permission_engine import PermissionEngine\n"
+            "engine = PermissionEngine()\n"
+            "has_perm = await engine.check_permission(user_id, 'person.register')"
+        )
     
     def has_role(self, role_name: str) -> bool:
-        """Check if user has specific role"""
-        return any(role.name == role_name and role.is_active for role in self.roles)
+        """LEGACY METHOD - REMOVED"""
+        raise NotImplementedError(
+            "Legacy role checking removed. Use new permission system with region/office roles.\n"
+            "Check user assignments: user.region_assignments and user.office_assignments"
+        )
+    
+    @property
+    def roles(self):
+        """LEGACY PROPERTY - REMOVED"""
+        raise NotImplementedError(
+            "Legacy roles property removed. Use new permission system.\n"
+            "Access region_assignments and office_assignments instead."
+        )
+    
+    @property 
+    def permissions(self):
+        """LEGACY PROPERTY - REMOVED"""
+        raise NotImplementedError(
+            "Legacy permissions property removed. Use PermissionEngine.get_user_permissions() instead.\n"
+            "from app.core.permission_engine import PermissionEngine\n"
+            "engine = PermissionEngine()\n"
+            "permissions = await engine.get_user_permissions(user_id)"
+        )
     
     def can_access_province(self, province_code: str) -> bool:
-        """Check if user can access a specific province (V06001)"""
-        if self.is_superuser:
+        """Check if user can access specific province using new permission system"""
+        # This is maintained but should use the new geographic scope system
+        from app.core.permission_engine import PermissionEngine
+        import asyncio
+        
+        # For now, return basic logic - should be replaced with PermissionEngine call
+        if self.user_type and self.user_type.can_access_all_provinces:
             return True
-        
-        # If user has a user group, check group permissions
-        if self.user_group:
-            # National Help Desk can access all provinces
-            if self.user_group.is_national_help_desk:
-                return True
-            
-            # Provincial Help Desk or local groups can access their province
-            if self.user_group.province_code == province_code:
-                return True
-        
-        # Check user's directly assigned province
-        return self.province_code == province_code or self.province == province_code
+        return self.assigned_province == province_code or self.province_code == province_code
     
     def can_manage_user_group(self, target_group_code: str) -> bool:
-        """Check if user can manage another user group (V06002)"""
-        if self.is_superuser:
-            return True
-        
-        if self.user_group:
-            return self.user_group.can_manage_user_group(target_group_code)
-        
-        return False
+        """LEGACY METHOD - UPDATED to use new permission system"""
+        # This should be replaced with proper permission checking
+        from app.core.permission_engine import PermissionEngine
+        # For now, basic logic - should use permission engine
+        return self.user_group_code == target_group_code
     
     def get_primary_location_assignment(self):
-        """Get user's primary location assignment"""
-        for assignment in self.location_assignments:
-            if (assignment.is_valid_assignment and 
-                assignment.assignment_type == "primary"):
-                return assignment
+        """Get primary location assignment - LEGACY"""
+        # Maintained for backward compatibility during migration
+        if self.location_assignments:
+            return self.location_assignments[0]
         return None
     
     def get_accessible_locations(self):
-        """Get all locations user can access"""
-        locations = []
-        for assignment in self.location_assignments:
-            if assignment.is_valid_assignment:
-                locations.append(assignment.location)
-        return locations
+        """Get all accessible locations - LEGACY"""
+        # Should be replaced with geographic scope from new permission system
+        return [assignment.location for assignment in self.location_assignments if assignment.is_active]
     
     def can_access_location(self, location_id: str) -> bool:
-        """Check if user can access a specific location (V06003)"""
-        if self.is_superuser:
-            return True
-        
-        # Check direct location assignments
-        for assignment in self.location_assignments:
-            if (assignment.is_valid_assignment and 
-                str(assignment.location_id) == str(location_id)):
-                return True
-        
-        return False
+        """Check location access - LEGACY"""
+        # Should use new geographic scope system
+        accessible_locations = self.get_accessible_locations()
+        return any(loc.id == location_id for loc in accessible_locations)
     
     @property
     def authority_level(self) -> str:
-        """Get user's authority level based on user group"""
-        if self.user_group:
-            if self.user_group.is_national_help_desk:
-                return AuthorityLevel.NATIONAL.value
-            elif self.user_group.is_provincial_help_desk:
-                return AuthorityLevel.PROVINCIAL.value
-            else:
-                return AuthorityLevel.LOCAL.value
-        return AuthorityLevel.PERSONAL.value
+        """Get user authority level using new permission system"""
+        if not self.user_type:
+            return AuthorityLevel.PERSONAL.value
+            
+        if self.user_type.name == 'super_admin':
+            return AuthorityLevel.NATIONAL.value
+        elif self.user_type.name == 'national_help_desk':
+            return AuthorityLevel.NATIONAL.value
+        elif self.user_type.name == 'provincial_help_desk':
+            return AuthorityLevel.PROVINCIAL.value
+        else:
+            return AuthorityLevel.LOCAL.value
 
-class Role(BaseModel):
-    """
-    User role model for role-based access control
-    
-    Implements roles from documentation:
-    - Admin: Full system access
-    - Operator: Transaction processing
-    - Examiner: Test administration
-    - Viewer: Read-only access
-    """
-    __tablename__ = "roles"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    name = Column(String(50), nullable=False, unique=True, comment="Role name")
-    display_name = Column(String(100), nullable=False, comment="Human-readable role name")
-    description = Column(Text, nullable=True, comment="Role description")
-    
-    # Role settings
-    is_system_role = Column(Boolean, nullable=False, default=False, comment="System-defined role (cannot be deleted)")
-    is_active = Column(Boolean, nullable=False, default=True, comment="Active status")
-    
-    # Hierarchy and inheritance
-    parent_role_id = Column(UUID(as_uuid=True), ForeignKey('roles.id'), nullable=True, comment="Parent role for inheritance")
-    level = Column(Integer, nullable=False, default=0, comment="Role hierarchy level")
-    
-    # Audit fields
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
-    created_by = Column(String(100), nullable=True)
-    updated_by = Column(String(100), nullable=True)
-    
-    # Relationships
-    users = relationship("User", secondary=user_roles, back_populates="roles")
-    permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
-    child_roles = relationship("Role", backref="parent_role", remote_side=[id])
-    
-    def __repr__(self):
-        return f"<Role(id={self.id}, name='{self.name}', display_name='{self.display_name}')>"
-
-class Permission(BaseModel):
-    """
-    Permission model for granular access control
-    
-    Implements permissions from documentation business rules:
-    - License application processing
-    - Financial transaction authorization
-    - Administrative functions
-    - Report generation
-    """
-    __tablename__ = "permissions"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    name = Column(String(100), nullable=False, unique=True, comment="Permission name/code")
-    display_name = Column(String(150), nullable=False, comment="Human-readable permission name")
-    description = Column(Text, nullable=True, comment="Permission description")
-    
-    # Permission categorization
-    category = Column(String(50), nullable=False, comment="Permission category (license, financial, admin, etc.)")
-    resource = Column(String(100), nullable=False, comment="Resource being protected")
-    action = Column(String(50), nullable=False, comment="Action being permitted (create, read, update, delete)")
-    
-    # Permission settings
-    is_system_permission = Column(Boolean, nullable=False, default=False, comment="System-defined permission")
-    is_active = Column(Boolean, nullable=False, default=True, comment="Active status")
-    
-    # Audit fields
-    created_at = Column(DateTime, nullable=False, default=func.now())
-    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
-    created_by = Column(String(100), nullable=True)
-    updated_by = Column(String(100), nullable=True)
-    
-    # Relationships
-    roles = relationship("Role", secondary=role_permissions, back_populates="permissions")
-    
-    def __repr__(self):
-        return f"<Permission(id={self.id}, name='{self.name}', category='{self.category}')>"
+# LEGACY MODELS REMOVED - These will break existing code to force migration
+# Role and Permission models are no longer available
+# user_roles and role_permissions tables are no longer defined
 
 class UserAuditLog(BaseModel):
     """
@@ -410,8 +337,7 @@ class UserAuditLog(BaseModel):
     user = relationship("User", back_populates="audit_logs")
     
     def __repr__(self):
-        return f"<UserAuditLog(id={self.id}, user_id={self.user_id}, action='{self.action}', success={self.success})>"
-
+        return f"<UserAuditLog(id={self.id}, user_id={self.user_id}, action='{self.action}')>"
 
 class UserSession(BaseModel):
     """
@@ -465,7 +391,7 @@ class UserSession(BaseModel):
     user = relationship("User", back_populates="user_sessions")
     
     def __repr__(self):
-        return f"<UserSession(id={self.id}, user_id={self.user_id}, workstation='{self.workstation_id}', active={self.is_active})>"
+        return f"<UserSession(id={self.id}, user_id={self.user_id}, workstation='{self.workstation_id}')>"
     
     @property
     def is_expired(self) -> bool:
@@ -474,21 +400,16 @@ class UserSession(BaseModel):
     
     @property
     def user_profile_display(self) -> str:
-        """User profile display name (V01029)"""
-        if self.user:
-            return self.user.full_display_name
-        return "Unknown User"
+        """Display user profile information"""
+        return f"{self.user_number} ({self.user_group_code})"
     
     @property
     def user_group_display(self) -> str:
-        """User group display name (V01010)"""
-        if self.user and self.user.user_group:
-            return self.user.user_group.user_group_name
-        return "Unknown Group"
+        """Display user group information"""
+        return f"{self.user_group_code} - {self.province_code}"
     
     @property
     def office_display(self) -> str:
-        """Office display name (V00497)"""
-        if self.user:
-            return f"{self.user_group_code}-{self.user.office_code}" if self.user.office_code else self.user_group_code
-        return "Unknown Office" 
+        """Display office information from user group and office code"""
+        # Extract office code from workstation or user data
+        return f"{self.user_group_code}{self.workstation_id[-1] if len(self.workstation_id) > 0 else 'A'}" 

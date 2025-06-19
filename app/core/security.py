@@ -212,32 +212,23 @@ async def get_current_active_superuser(current_user = Depends(get_current_user))
     return current_user
 
 def require_permission(permission: str):
-    """
-    Decorator to require specific permission
-    """
-    def permission_checker(current_user = Depends(get_current_user)) -> dict:
-        user_permissions = current_user.get("permissions", [])
-        if permission not in user_permissions and "admin" not in user_permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permission required: {permission}"
-            )
-        return current_user
-    return permission_checker
+    """LEGACY DECORATOR - REMOVED TO FORCE MIGRATION"""
+    raise NotImplementedError(
+        f"Legacy require_permission decorator removed. Use new permission system instead.\n"
+        f"Replace with: from app.core.permission_middleware import require_permission\n"
+        f"@require_permission('{permission}')\n"
+        f"The new system uses dot notation: 'person.register', 'license.application.create', etc.\n"
+        f"See cursor rules for permission mapping."
+    )
 
 def require_role(role: str):
-    """
-    Decorator to require specific role
-    """
-    def role_checker(current_user = Depends(get_current_user)) -> dict:
-        user_role = current_user.get("role", "")
-        if user_role != role and user_role != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Role required: {role}"
-            )
-        return current_user
-    return role_checker
+    """LEGACY DECORATOR - REMOVED TO FORCE MIGRATION"""
+    raise NotImplementedError(
+        f"Legacy require_role decorator removed. Use new permission system instead.\n"
+        f"Roles are now handled through region/office assignments.\n"
+        f"Use permission decorators: from app.core.permission_middleware import require_permission\n"
+        f"Check the permission mapping in the cursor rules for equivalent permissions."
+    )
 
 # For development/testing - create a test token
 def create_test_token() -> str:

@@ -14,7 +14,9 @@ import structlog
 from jose import JWTError, jwt
 import uuid
 
-from app.models.user import User, Role, Permission, UserAuditLog, UserStatus
+from app.models.user import User, UserAuditLog, UserStatus
+# LEGACY IMPORTS REMOVED - Role and Permission models no longer available
+# Use new permission system: from app.models.permission_system import UserType, RegionRole, OfficeRole
 from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse, 
     RoleCreate, RoleUpdate, PermissionCreate,
@@ -122,8 +124,10 @@ class UserService:
             token_data = {
                 "sub": user.username,  # Use username as subject
                 "user_id": str(user.id),
-                "roles": [role.name for role in user.roles],
-                "permissions": self._get_user_permissions(user)
+                # LEGACY FIELDS REMOVED - Use new permission system
+                # "roles": [role.name for role in user.roles],  # REMOVED
+                # "permissions": self._get_user_permissions(user)  # REMOVED
+                "user_type": user.user_type.name if user.user_type else "standard_user"
             }
             
             # Create access token with 15 minute expiry
@@ -154,21 +158,13 @@ class UserService:
             )
     
     def _get_user_permissions(self, user: User) -> List[str]:
-        """Get list of user permissions from roles"""
-        permissions = set()
-        
-        if user.is_superuser:
-            # Superuser has all permissions
-            all_permissions = self.db.query(Permission).filter(Permission.is_active == True).all()
-            return [p.name for p in all_permissions]
-        
-        for role in user.roles:
-            if role.is_active:
-                for permission in role.permissions:
-                    if permission.is_active:
-                        permissions.add(permission.name)
-        
-        return list(permissions)
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy permission method removed. Use new permission system instead.\n"
+            "from app.core.permission_engine import PermissionEngine\n"
+            "engine = PermissionEngine()\n"
+            "permissions = await engine.get_user_permissions(user.id)"
+        )
     
     # User Management Methods
     async def create_user(self, user_data: UserCreate, created_by: str = None) -> User:
@@ -222,13 +218,18 @@ class UserService:
             self.db.add(user)
             self.db.flush()  # Get user ID
             
-            # Assign roles
-            if user_data.role_ids:
-                roles = self.db.query(Role).filter(
-                    Role.id.in_(user_data.role_ids),
-                    Role.is_active == True
-                ).all()
-                user.roles = roles
+            # LEGACY ROLE ASSIGNMENT REMOVED - Use new permission system
+            # if user_data.role_ids:
+            #     roles = self.db.query(Role).filter(
+            #         Role.id.in_(user_data.role_ids),
+            #         Role.is_active == True
+            #     ).all()
+            #     user.roles = roles
+            
+            # TODO: Implement new permission system user type assignment
+            # user.user_type_id = user_data.user_type_id
+            # await assign_region_roles(user.id, user_data.region_assignments)
+            # await assign_office_roles(user.id, user_data.office_assignments)
             
             self.db.commit()
             self.db.refresh(user)
@@ -252,10 +253,14 @@ class UserService:
             )
     
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID with roles and permissions"""
+        """Get user by ID - UPDATED for new permission system"""
         try:
             user = self.db.query(User).options(
-                selectinload(User.roles).selectinload(Role.permissions)
+                # LEGACY REMOVED: selectinload(User.roles).selectinload(Role.permissions)
+                # NEW: Load new permission system relationships
+                # selectinload(User.user_type),
+                # selectinload(User.region_assignments),
+                # selectinload(User.office_assignments)
             ).filter(User.id == user_id).first()
             
             if not user:
@@ -276,10 +281,10 @@ class UserService:
             )
     
     async def get_user_by_username(self, username: str) -> Optional[User]:
-        """Get user by username"""
+        """Get user by username - UPDATED for new permission system"""
         try:
             user = self.db.query(User).options(
-                selectinload(User.roles).selectinload(Role.permissions)
+                # LEGACY REMOVED: selectinload(User.roles).selectinload(Role.permissions)
             ).filter(User.username == username).first()
             
             return user
@@ -397,57 +402,16 @@ class UserService:
                 detail="Error retrieving users"
             )
     
-    # Role Management Methods
-    async def create_role(self, role_data: RoleCreate, created_by: str = None) -> Role:
-        """Create new role"""
-        try:
-            # Check if role name already exists
-            existing_role = self.db.query(Role).filter(Role.name == role_data.name).first()
-            if existing_role:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Role name already exists"
-                )
-            
-            role = Role(
-                name=role_data.name,
-                display_name=role_data.display_name,
-                description=role_data.description,
-                is_active=role_data.is_active,
-                parent_role_id=role_data.parent_role_id,
-                created_by=created_by
-            )
-            
-            self.db.add(role)
-            self.db.flush()
-            
-            # Assign permissions
-            if role_data.permission_ids:
-                permissions = self.db.query(Permission).filter(
-                    Permission.id.in_(role_data.permission_ids),
-                    Permission.is_active == True
-                ).all()
-                role.permissions = permissions
-            
-            self.db.commit()
-            self.db.refresh(role)
-            
-            await self._log_audit(
-                None, "role_created", "role_management",
-                success=True, details=f"Role created: {role.name}"
-            )
-            
-            return role
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            self.db.rollback()
-            logger.error("Error creating role", role_name=role_data.name, error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error creating role"
-            )
+    # LEGACY ROLE MANAGEMENT METHODS - REMOVED TO FORCE MIGRATION
+    async def create_role(self, role_data, created_by: str = None):
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy role management removed. Use new permission system instead.\n"
+            "Roles are now predefined: RegionRole and OfficeRole models.\n"
+            "Use: from app.services.permission_service import PermissionService\n"
+            "service = PermissionService()\n"
+            "await service.assign_region_role(user_id, region_id, role_code)"
+        )
     
     async def get_roles(self) -> List[Role]:
         """Get all active roles"""
@@ -567,12 +531,21 @@ class UserService:
     
     # Authorization Methods
     def check_permission(self, user: User, permission_name: str) -> bool:
-        """Check if user has specific permission"""
-        return user.has_permission(permission_name)
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy permission checking removed. Use PermissionEngine instead.\n"
+            "from app.core.permission_engine import PermissionEngine\n"
+            "engine = PermissionEngine()\n"
+            "has_perm = await engine.check_permission(user.id, 'person.register')"
+        )
     
     def check_role(self, user: User, role_name: str) -> bool:
-        """Check if user has specific role"""
-        return user.has_role(role_name)
+        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
+        raise NotImplementedError(
+            "Legacy role checking removed. Use new permission system.\n"
+            "Check user assignments: user.region_assignments and user.office_assignments\n"
+            "Or use permission checking: PermissionEngine.check_permission()"
+        )
     
     async def get_user_permissions(self, user_id: str) -> List[Permission]:
         """Get list of permission objects for a specific user"""
