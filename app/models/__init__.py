@@ -2,24 +2,12 @@
 
 from .base import BaseModel
 from .enums import *
-from .person import Person, PersonAddress, PersonAlias, NaturalPerson
-from .license import (
-    LicenseApplication, 
-    LicenseCard, 
-    ApplicationPayment, 
-    TestCenter,
-    ApplicationStatus,
-    LicenseType
-)
-from .user import (
-    User, UserAuditLog, UserStatus, UserSession, UserType
-)
-from .audit import AuditLog, FileMetadata
-
-# Location Management Models (NEW)
+from .person import Person, PersonStatus, PersonType, NationalityType, Gender, PersonAddress, AddressType
+from .license import License, LicenseType, LicenseStatus, LicenseCategory, LicenseEndorsement, LicenseRestriction
+from .application import Application, ApplicationType, ApplicationStatus
+from .user import User, UserAuditLog, UserSession, UserStatus
 from .region import Region, RegionType, RegistrationStatus
-from .office import Office, OfficeType
-from .location import Location, InfrastructureType, OperationalStatus, LocationScope
+from .office import Office, OfficeType, InfrastructureType, OperationalStatus, OfficeScope
 from .location_resource import LocationResource, ResourceType, ResourceStatus
 from .user_location_assignment import UserLocationAssignment, AssignmentType, AssignmentStatus
 
@@ -32,50 +20,57 @@ from .user import Role, Permission  # TEMPORARY - Legacy models for migration
 
 __all__ = [
     "BaseModel",
-    "Person", 
+    "Person",
+    "PersonStatus",
+    "PersonType",
+    "NationalityType",
+    "Gender",
     "PersonAddress",
-    "PersonAlias",
-    "NaturalPerson",
-    "LicenseApplication",
-    "LicenseCard", 
-    "ApplicationPayment",
-    "TestCenter",
-    "ApplicationStatus",
+    "AddressType",
+    "License",
     "LicenseType",
+    "LicenseStatus",
+    "LicenseCategory",
+    "LicenseEndorsement",
+    "LicenseRestriction",
+    "Application",
+    "ApplicationType",
+    "ApplicationStatus",
     "User",
-    "UserType",
     "UserAuditLog",
-    "UserStatus",
     "UserSession",
-    "AuditLog",
-    "FileMetadata",
-    # Location Management Models
+    "UserStatus",
+    "UserType",
     "Region",
     "RegionType",
-    "RegistrationStatus", 
+    "RegistrationStatus",
     "Office",
     "OfficeType",
-    "Location",
     "InfrastructureType",
     "OperationalStatus",
-    "LocationScope",
+    "OfficeScope",
     "LocationResource",
     "ResourceType",
     "ResourceStatus",
     "UserLocationAssignment",
     "AssignmentType",
     "AssignmentStatus",
-    # Enums
     "Gender",
-    "IdDocumentType", 
-    "ValidationStatus",
-    "AddressType",
     "PersonType",
-    "NationalityType",
-    # NEW PERMISSION SYSTEM
+    "PersonStatus",
+    "AddressType",
+    "UserType",
+    "UserType",
+    "UserAuditLog",
+    "UserStatus",
+    "UserType",
+    "LicenseType",
+    "User",
+    "UserType",
+    "UserAuditLog",
+    "UserStatus",
     "UserRegionAssignment",
     "UserOfficeAssignment",
-    # LEGACY - TEMPORARY
     "Role",
     "Permission",
 ] 

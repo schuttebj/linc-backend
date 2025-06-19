@@ -102,7 +102,6 @@ class Region(BaseModel):
     child_regions = relationship("Region", backref="parent_region", remote_side=[id])
     users = relationship("User", back_populates="region")
     offices = relationship("Office", back_populates="region", cascade="all, delete-orphan")
-    locations = relationship("Location", back_populates="region", cascade="all, delete-orphan")
     
     # Database constraints as per development standards
     __table_args__ = (

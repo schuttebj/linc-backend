@@ -53,10 +53,8 @@ class UserLocationAssignment(BaseModel):
     # Relationship fields
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False,
                     comment="Assigned user")
-    location_id = Column(UUID(as_uuid=True), ForeignKey('locations.id'), nullable=False,
-                        comment="Assigned location")
-    office_id = Column(UUID(as_uuid=True), ForeignKey('offices.id'), nullable=True,
-                      comment="Specific office within location (optional)")
+    office_id = Column(UUID(as_uuid=True), ForeignKey('offices.id'), nullable=False,
+                      comment="Assigned office (merged from location)")
     
     # Assignment classification
     assignment_type = Column(String(20), nullable=False, default=AssignmentType.SECONDARY.value,
@@ -110,7 +108,6 @@ class UserLocationAssignment(BaseModel):
     
     # Relationships
     user = relationship("User", back_populates="location_assignments")
-    location = relationship("Location", back_populates="user_assignments")
     office = relationship("Office", back_populates="user_assignments")
     
     # Unique constraint to prevent duplicate active assignments
@@ -119,7 +116,7 @@ class UserLocationAssignment(BaseModel):
     )
     
     def __repr__(self):
-        return f"<UserLocationAssignment(user_id='{self.user_id}', location_id='{self.location_id}', type='{self.assignment_type}')>"
+        return f"<UserLocationAssignment(user_id='{self.user_id}', office_id='{self.office_id}', type='{self.assignment_type}')>"
     
     @property
     def is_valid_assignment(self) -> bool:
@@ -234,14 +231,14 @@ class UserLocationAssignment(BaseModel):
         return violations
     
     @staticmethod
-    def get_user_primary_location(user_id: str):
-        """Get user's primary location assignment"""
+    def get_user_primary_office(user_id: str):
+        """Get user's primary office assignment"""
         # This would be implemented in the service layer
         # Return the primary assignment for the user
         pass
     
     @staticmethod
-    def check_assignment_conflicts(user_id: str, location_id: str, 
+    def check_assignment_conflicts(user_id: str, office_id: str, 
                                  effective_date: DateTime, expiry_date: DateTime = None) -> list:
         """Check for assignment conflicts for a user"""
         # This would be implemented in the service layer
