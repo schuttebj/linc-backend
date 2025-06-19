@@ -29,186 +29,120 @@ class PermissionDeniedError(HTTPException):
 
 
 
-def require_any_permission(*permissions: str, context_fields: List[str] = None) -> Callable:
+def require_any_permission(*permissions: str, context_fields: List[str] = None):
     """
-    Check if user has ANY of the specified permissions
+    Create a dependency for checking if user has ANY of the specified permissions
     
     Usage:
-        @require_any_permission("license.read", "license.view")
-        @require_any_permission("admin.user.read", "admin.user.view", context_fields=["province_code"])
+        async def my_endpoint(
+            current_user: User = Depends(require_any_permission("license.read", "license.view"))
+        ):
     """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Get dependencies (same as require_permission)
-            current_user = None
-            db_session = None
-            request = None
-            
-            for key, value in kwargs.items():
-                if isinstance(value, User):
-                    current_user = value
-                elif isinstance(value, Session):
-                    db_session = value
-                elif isinstance(value, Request):
-                    request = value
-            
-            if not current_user or not db_session:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
-                )
-            
-            # Build context
-            context = {}
-            if context_fields and request:
-                # Similar context building logic as require_permission
-                pass  # Simplified for brevity
-            
-            # Check permissions
-            try:
-                engine = get_permission_engine(db_session)
-                has_permission = await engine.check_multiple_permissions(
-                    str(current_user.id),
-                    list(permissions),
-                    require_all=False,  # ANY permission
-                    context=context if context else None
-                )
-                
-                if not has_permission:
-                    logger.warning("None of required permissions found",
-                                 user_id=str(current_user.id),
-                                 permissions=permissions)
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"At least one of these permissions required: {', '.join(permissions)}"
-                    )
-                
-                return await func(*args, **kwargs)
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error("Multiple permission check failed", 
-                           user_id=str(current_user.id),
-                           permissions=permissions,
-                           error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Permission check failed"
-                )
-        
-        return wrapper
-    return decorator
+    return AnyPermissionRequired(permissions, context_fields)
 
-def require_all_permissions(*permissions: str, context_fields: List[str] = None) -> Callable:
+class AnyPermissionRequired:
     """
-    Check if user has ALL of the specified permissions
+    FastAPI dependency for checking ANY of multiple permissions
+    """
+    def __init__(self, permissions: tuple, context_fields: List[str] = None):
+        self.permissions = permissions
+        self.context_fields = context_fields
     
-    Usage:
-        @require_all_permissions("license.read", "license.approve")
-    """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Similar implementation to require_any_permission but with require_all=True
-            current_user = None
-            db_session = None
-            
-            for key, value in kwargs.items():
-                if isinstance(value, User):
-                    current_user = value
-                elif isinstance(value, Session):
-                    db_session = value
-            
-            if not current_user or not db_session:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
-                )
-            
-            try:
-                engine = get_permission_engine(db_session)
-                has_permission = await engine.check_multiple_permissions(
-                    str(current_user.id),
-                    list(permissions),
-                    require_all=True,  # ALL permissions
-                    context=None
-                )
-                
-                if not has_permission:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"All of these permissions required: {', '.join(permissions)}"
-                    )
-                
-                return await func(*args, **kwargs)
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error("All permissions check failed", error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Permission check failed"
-                )
+    async def __call__(
+        self,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ) -> User:
         
-        return wrapper
-    return decorator
+        try:
+            engine = get_permission_engine(db)
+            has_permission = await engine.check_multiple_permissions(
+                str(current_user.id),
+                list(self.permissions),
+                require_all=False,  # ANY permission
+                context=None
+            )
+            
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"At least one of these permissions required: {', '.join(self.permissions)}"
+                )
+            
+            return current_user
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("Multiple permission check failed", 
+                       permissions=self.permissions, error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Permission check failed"
+            )
 
-def require_system_type(*system_types: SystemType) -> Callable:
+def require_all_permissions(*permissions: str, context_fields: List[str] = None):
     """
-    Require user to have specific system type(s)
+    Create a dependency for checking if user has ALL of the specified permissions
     
     Usage:
-        @require_system_type(SystemType.SUPER_ADMIN)
-        @require_system_type(SystemType.SUPER_ADMIN, SystemType.NATIONAL_HELP_DESK)
+        async def my_endpoint(
+            current_user: User = Depends(require_all_permissions("license.read", "license.approve"))
+        ):
     """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            current_user = None
-            db_session = None
-            
-            for key, value in kwargs.items():
-                if isinstance(value, User):
-                    current_user = value
-                elif isinstance(value, Session):
-                    db_session = value
-            
-            if not current_user or not db_session:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
-                )
-            
-            try:
-                engine = get_permission_engine(db_session)
-                compiled = await engine.compile_user_permissions(str(current_user.id))
-                
-                if compiled.system_type not in system_types:
-                    logger.warning("System type access denied",
-                                 user_id=str(current_user.id),
-                                 user_system_type=compiled.system_type.value,
-                                 required_types=[st.value for st in system_types])
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=f"System type required: {[st.value for st in system_types]}"
-                    )
-                
-                return await func(*args, **kwargs)
-                
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.error("System type check failed", error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="System type check failed"
-                )
+    return AllPermissionsRequired(permissions, context_fields)
+
+class AllPermissionsRequired:
+    """
+    FastAPI dependency for checking ALL of multiple permissions
+    """
+    def __init__(self, permissions: tuple, context_fields: List[str] = None):
+        self.permissions = permissions
+        self.context_fields = context_fields
+    
+    async def __call__(
+        self,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ) -> User:
         
-        return wrapper
-    return decorator
+        try:
+            engine = get_permission_engine(db)
+            has_permission = await engine.check_multiple_permissions(
+                str(current_user.id),
+                list(self.permissions),
+                require_all=True,  # ALL permissions
+                context=None
+            )
+            
+            if not has_permission:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"All of these permissions required: {', '.join(self.permissions)}"
+                )
+            
+            return current_user
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("All permissions check failed", 
+                       permissions=self.permissions, error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Permission check failed"
+            )
+
+def require_system_type(*system_types: SystemType):
+    """
+    Create a dependency for checking user system type
+    
+    Usage:
+        async def my_endpoint(
+            current_user: User = Depends(require_system_type(SystemType.SUPER_ADMIN))
+        ):
+    """
+    return SystemTypeRequired(*system_types)
 
 def require_geographic_access(province_code: str = None, region_id: str = None, 
                             office_id: str = None) -> Callable:
