@@ -2,9 +2,9 @@
 
 from .base import BaseModel
 from .enums import *
-from .person import Person, PersonStatus, PersonType, NationalityType, Gender, PersonAddress, AddressType
-from .license import License, LicenseType, LicenseStatus, LicenseCategory, LicenseEndorsement, LicenseRestriction
-from .application import Application, ApplicationType, ApplicationStatus
+from .person import Person, PersonNature, IdentificationType, AddressType, PersonAlias, NaturalPerson, PersonAddress, Organization
+from .license import LicenseApplication, LicenseCard, ApplicationPayment, TestCenter, ApplicationStatus, LicenseType
+# from .application import Application, ApplicationType, ApplicationStatus  # TODO: Create application model
 from .user import User, UserAuditLog, UserSession, UserStatus
 from .region import Region, RegionType, RegistrationStatus
 from .office import Office, OfficeType, InfrastructureType, OperationalStatus, OfficeScope
@@ -20,27 +20,37 @@ from .user import Role, Permission  # TEMPORARY - Legacy models for migration
 
 __all__ = [
     "BaseModel",
+    # Person models
     "Person",
-    "PersonStatus",
-    "PersonType",
-    "NationalityType",
-    "Gender",
+    "PersonNature",
+    "IdentificationType", 
+    "PersonAlias",
+    "NaturalPerson",
     "PersonAddress",
+    "Organization",
     "AddressType",
-    "License",
-    "LicenseType",
-    "LicenseStatus",
-    "LicenseCategory",
-    "LicenseEndorsement",
-    "LicenseRestriction",
-    "Application",
-    "ApplicationType",
+    
+    # License models
+    "LicenseApplication",
+    "LicenseCard", 
+    "ApplicationPayment",
+    "TestCenter",
     "ApplicationStatus",
+    "LicenseType",
+    
+    # Application models - TODO: Create application model
+    # "Application",
+    # "ApplicationType", 
+    # "ApplicationStatus",
+    
+    # User models
     "User",
     "UserAuditLog",
     "UserSession",
     "UserStatus",
     "UserType",
+    
+    # Organization models
     "Region",
     "RegionType",
     "RegistrationStatus",
@@ -49,28 +59,26 @@ __all__ = [
     "InfrastructureType",
     "OperationalStatus",
     "OfficeScope",
+    
+    # Resource models
     "LocationResource",
     "ResourceType",
     "ResourceStatus",
+    
+    # Assignment models
     "UserLocationAssignment",
     "AssignmentType",
     "AssignmentStatus",
+    
+    # Enums (from enums.py)
     "Gender",
-    "PersonType",
-    "PersonStatus",
-    "AddressType",
-    "UserType",
-    "UserType",
-    "UserAuditLog",
-    "UserStatus",
-    "UserType",
-    "LicenseType",
-    "User",
-    "UserType",
-    "UserAuditLog",
-    "UserStatus",
+    "ValidationStatus",
+    
+    # Permission system
     "UserRegionAssignment",
     "UserOfficeAssignment",
+    
+    # Legacy (temporary)
     "Role",
     "Permission",
 ] 
