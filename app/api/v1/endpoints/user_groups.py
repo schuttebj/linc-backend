@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.permissions import require_permission
+from app.core.permission_middleware import require_permission
 from app.crud.user_group import user_group, user_group_create, user_group_update, user_group_delete
 from app.schemas.location import (
     UserGroupCreate, 
@@ -28,7 +28,7 @@ def create_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_in: UserGroupCreate,
-    current_user: User = Depends(require_permission("user_group_create"))
+    current_user: User = Depends(require_permission("user_group.create"))
 ):
     """
     Create new user group.
@@ -55,7 +55,7 @@ def create_user_group(
 @router.get("/", response_model=List[UserGroupResponse])
 def read_user_groups(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_group_read")),
+    current_user: User = Depends(require_permission("user_group.read")),
     skip: int = 0,
     limit: int = 100,
     province_code: Optional[str] = Query(None, description="Filter by province code"),
@@ -102,7 +102,7 @@ def get_user_group_statistics(
     """
     Get user group statistics.
     """
-    if not current_user.has_permission("user_group_read"):
+    if not current_user.has_permission("user_group.read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user group statistics"
@@ -116,7 +116,7 @@ def read_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_id: UUID,
-    current_user: User = Depends(require_permission("user_group_read"))
+    current_user: User = Depends(require_permission("user_group.read"))
 ):
     """
     Get user group by ID.
@@ -146,7 +146,7 @@ def update_user_group(
     db: Session = Depends(get_db),
     user_group_id: UUID,
     user_group_in: UserGroupUpdate,
-    current_user: User = Depends(require_permission("user_group_update"))
+    current_user: User = Depends(require_permission("user_group.update"))
 ):
     """
     Update user group.
@@ -182,7 +182,7 @@ def delete_user_group(
     *,
     db: Session = Depends(get_db),
     user_group_id: UUID,
-    current_user: User = Depends(require_permission("user_group_delete"))
+    current_user: User = Depends(require_permission("user_group.delete"))
 ):
     """
     Delete user group (soft delete).
@@ -217,7 +217,7 @@ def get_user_groups_by_province(
     """
     Get all user groups in a specific province.
     """
-    if not current_user.has_permission("user_group_read"):
+    if not current_user.has_permission("user_group.read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -242,7 +242,7 @@ def get_dltc_user_groups(
     """
     Get all DLTC user groups.
     """
-    if not current_user.has_permission("user_group_read"):
+    if not current_user.has_permission("user_group.read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -268,7 +268,7 @@ def get_help_desk_user_groups(
     """
     Get all help desk user groups.
     """
-    if not current_user.has_permission("user_group_read"):
+    if not current_user.has_permission("user_group.read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to read user groups"
@@ -295,7 +295,7 @@ def validate_user_group_code(
     """
     Check if user group code is available.
     """
-    if not current_user.has_permission("user_group_create"):
+    if not current_user.has_permission("user_group.create"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions to validate user group codes"
