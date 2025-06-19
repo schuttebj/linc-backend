@@ -12,15 +12,12 @@ from .license import (
     LicenseType
 )
 from .user import (
-    User, UserAuditLog, UserStatus, UserSession,
-    Role, Permission, UserType,  # TEMPORARY - For migration period
-    RegionRole, OfficeRole, UserRegionAssignment, UserOfficeAssignment,
-    user_roles, role_permissions  # TEMPORARY - For migration period
+    User, UserAuditLog, UserStatus, UserSession, UserType
 )
 from .audit import AuditLog, FileMetadata
 
 # Location Management Models (NEW)
-from .user_group import UserGroup, UserGroupType, RegistrationStatus
+from .region import Region, RegionType, RegistrationStatus
 from .office import Office, OfficeType
 from .location import Location, InfrastructureType, OperationalStatus, LocationScope
 from .location_resource import LocationResource, ResourceType, ResourceStatus
@@ -39,23 +36,15 @@ __all__ = [
     "ApplicationStatus",
     "LicenseType",
     "User",
-    "Role",  # TEMPORARY - For migration period
-    "Permission",  # TEMPORARY - For migration period
-    "UserType",
-    "RegionRole", 
-    "OfficeRole",
-    "UserRegionAssignment",
-    "UserOfficeAssignment",
-    "user_roles",  # TEMPORARY - For migration period
-    "role_permissions",  # TEMPORARY - For migration period
+    "UserType"
     "UserAuditLog",
     "UserStatus",
     "UserSession",
     "AuditLog",
     "FileMetadata",
     # Location Management Models
-    "UserGroup",
-    "UserGroupType",
+    "Region",
+    "RegionType",
     "RegistrationStatus", 
     "Office",
     "OfficeType",

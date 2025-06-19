@@ -404,45 +404,70 @@ class UserService:
     
     # LEGACY ROLE MANAGEMENT METHODS - REMOVED TO FORCE MIGRATION
     async def create_role(self, role_data, created_by: str = None):
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy role management removed. Use new permission system instead.\n"
-            "Roles are now predefined: RegionRole and OfficeRole models.\n"
-            "Use: from app.services.permission_service import PermissionService\n"
-            "service = PermissionService()\n"
-            "await service.assign_region_role(user_id, region_id, role_code)"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy create_role() method. Migrate to new permission system")
+        try:
+            # Create basic role for migration compatibility
+            role = Role(
+                name=role_data.name,
+                display_name=role_data.display_name,
+                description=role_data.description,
+                created_by=created_by
+            )
+            self.db.add(role)
+            self.db.commit()
+            self.db.refresh(role)
+            return role
+        except Exception as e:
+            logger.error("Error creating role", error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error creating role"
+            )
     
     async def get_roles(self):
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy role management removed. Use new permission system instead.\n"
-            "Roles are now predefined: RegionRole and OfficeRole models.\n"
-            "Use: from app.services.permission_service import PermissionService\n"
-            "service = PermissionService()\n"
-            "roles = await service.get_region_roles() or await service.get_office_roles()"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy get_roles() method. Migrate to new permission system")
+        try:
+            roles = self.db.query(Role).filter(Role.is_active == True).all()
+            return roles
+        except Exception as e:
+            logger.error("Error getting roles", error=str(e))
+            return []
     
     # LEGACY PERMISSION MANAGEMENT METHODS - REMOVED TO FORCE MIGRATION
     async def create_permission(self, permission_data, created_by: str = None):
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy permission management removed. Use new permission system instead.\n"
-            "Permissions are now predefined in RegionRole and OfficeRole models.\n"
-            "Use: from app.services.permission_service import PermissionService\n"
-            "service = PermissionService()\n"
-            "await service.update_role_permissions(role_id, new_permissions)"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy create_permission() method. Migrate to new permission system")
+        try:
+            # Create basic permission for migration compatibility
+            permission = Permission(
+                name=permission_data.name,
+                display_name=permission_data.display_name,
+                description=permission_data.description,
+                category=permission_data.category,
+                created_by=created_by
+            )
+            self.db.add(permission)
+            self.db.commit()
+            self.db.refresh(permission)
+            return permission
+        except Exception as e:
+            logger.error("Error creating permission", error=str(e))
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error creating permission"
+            )
     
     async def get_permissions(self):
-        """LEGACY METHOD - REMOVED TO FORCE MIGRATION"""
-        raise NotImplementedError(
-            "Legacy permission management removed. Use new permission system instead.\n"
-            "Permissions are now predefined in RegionRole and OfficeRole models.\n"
-            "Use: from app.services.permission_service import PermissionService\n"
-            "service = PermissionService()\n"
-            "permissions = await service.get_all_permissions()"
-        )
+        """LEGACY METHOD - TEMPORARY FOR MIGRATION"""
+        print(f"WARNING: Using legacy get_permissions() method. Migrate to new permission system")
+        try:
+            permissions = self.db.query(Permission).filter(Permission.is_active == True).all()
+            return permissions
+        except Exception as e:
+            logger.error("Error getting permissions", error=str(e))
+            return []
     
     # Password Management Methods
     async def change_password(self, user_id: str, current_password: str, new_password: str) -> bool:

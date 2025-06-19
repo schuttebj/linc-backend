@@ -42,9 +42,9 @@ class Office(BaseModel):
     office_name = Column(String(100), nullable=False, 
                         comment="Office name (e.g., Main Office, Branch Office)")
     
-    # User group relationship
-    user_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=False,
-                          comment="Parent user group")
+    # Region relationship
+    region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id'), nullable=False,
+                      comment="Parent region")
     
     # Office classification
     office_type = Column(String(20), nullable=False, default=OfficeType.BRANCH.value,
@@ -80,25 +80,25 @@ class Office(BaseModel):
     updated_by = Column(String(100), nullable=True)
     
     # Relationships
-    user_group = relationship("UserGroup", back_populates="offices")
+    region = relationship("Region", back_populates="offices")
     locations = relationship("Location", back_populates="office", cascade="all, delete-orphan")
     user_assignments = relationship("UserLocationAssignment", back_populates="office")
     
     # Table constraints as per development standards
     __table_args__ = (
-        UniqueConstraint('user_group_id', 'office_code', name='uq_office_user_group_code'),
+        UniqueConstraint('region_id', 'office_code', name='uq_office_region_code'),
         CheckConstraint("office_code ~ '^[A-Z]$'", name='chk_office_code_format'),
-        {'comment': 'Office management within user groups with A-Z codes'},
+        {'comment': 'Office management within regions with A-Z codes'},
     )
     
     def __repr__(self):
-        return f"<Office(code='{self.office_code}', name='{self.office_name}', group='{self.user_group_id}')>"
+        return f"<Office(code='{self.office_code}', name='{self.office_name}', region='{self.region_id}')>"
     
     @property
     def full_office_code(self) -> str:
-        """Get the full office identifier (UserGroupCode + OfficeCode)"""
-        if self.user_group:
-            return f"{self.user_group.user_group_code}{self.office_code}"
+        """Get the full office identifier (RegionCode + OfficeCode)"""
+        if self.region:
+            return f"{self.region.user_group_code}{self.office_code}"
         return self.office_code
     
     @property
@@ -147,8 +147,8 @@ class Office(BaseModel):
                 self.office_code.isupper())
     
     @staticmethod
-    def suggest_office_code(user_group_id: str, office_type: OfficeType = None) -> str:
-        """Suggest the next available office code for a user group"""
+    def suggest_office_code(region_id: str, office_type: OfficeType = None) -> str:
+        """Suggest the next available office code for a region"""
         # This would query existing offices and suggest the next available code
         # For now, return a basic suggestion based on office type
         

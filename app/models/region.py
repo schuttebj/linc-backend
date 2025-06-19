@@ -1,6 +1,6 @@
 """
-User Group Model
-Implements the 4-character user group authority system from eNaTIS documentation
+Region Model
+Implements the 4-character region authority system from eNaTIS documentation
 Represents authorities like DLTC, RA, Provincial Help Desk, etc.
 """
 
@@ -13,7 +13,7 @@ import uuid
 
 from app.models.base import BaseModel
 
-class UserGroupType(PythonEnum):
+class RegionType(PythonEnum):
     """User group authority types - using numeric codes for consistency"""
     FIXED_DLTC = "10"                    # Fixed Driving License Testing Center
     MOBILE_DLTC = "11"                   # Mobile Driving License Testing Unit
@@ -35,11 +35,11 @@ class RegistrationStatus(PythonEnum):
     INSPECTION_FAILED = "7"              # Failed inspection
     DEREGISTERED = "8"                   # Formally deregistered
 
-class UserGroup(BaseModel):
+class Region(BaseModel):
     """
-    User Group Model - Authority Management System
+    Region Model - Authority Management System
     
-    Implements the 4-character user group codes from eNaTIS documentation.
+    Implements the 4-character region codes from eNaTIS documentation.
     Represents authorities like DLTC, RA, Provincial Help Desk, etc.
     
     Examples:
@@ -47,7 +47,7 @@ class UserGroup(BaseModel):
     - GP03: Johannesburg RA
     - WCHD: Western Cape Help Desk
     """
-    __tablename__ = "user_groups"
+    __tablename__ = "regions"
     
     # Primary identification
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
@@ -65,7 +65,7 @@ class UserGroup(BaseModel):
                          comment="Province code (WC, GP, KZN, etc.)")
     
     # Hierarchical relationships
-    parent_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=True,
+    parent_region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id'), nullable=True,
                            comment="Parent authority for hierarchical structures")
     
     # System variables from documentation
@@ -99,25 +99,25 @@ class UserGroup(BaseModel):
     updated_by = Column(String(100), nullable=True)
     
     # Relationships
-    child_groups = relationship("UserGroup", backref="parent_group", remote_side=[id])
-    users = relationship("User", back_populates="user_group")
-    offices = relationship("Office", back_populates="user_group", cascade="all, delete-orphan")
-    locations = relationship("Location", back_populates="user_group", cascade="all, delete-orphan")
+    child_regions = relationship("Region", backref="parent_region", remote_side=[id])
+    users = relationship("User", back_populates="region")
+    offices = relationship("Office", back_populates="region", cascade="all, delete-orphan")
+    locations = relationship("Location", back_populates="region", cascade="all, delete-orphan")
     
     # Database constraints as per development standards
     __table_args__ = (
         CheckConstraint("user_group_code ~ '^[A-Z0-9]{4}$'", name='chk_user_group_code_format'),
         CheckConstraint("province_code ~ '^[A-Z]{2}$'", name='chk_province_code_format'),
-        {'comment': 'User group authority management with 4-character codes'},
+        {'comment': 'Region authority management with 4-character codes'},
     )
     
     def __repr__(self):
-        return f"<UserGroup(code='{self.user_group_code}', name='{self.user_group_name}', type='{self.user_group_type}')>"
+        return f"<Region(code='{self.user_group_code}', name='{self.user_group_name}', type='{self.user_group_type}')>"
     
     @property
     def is_dltc(self) -> bool:
         """Check if this is a DLTC (Fixed or Mobile)"""
-        return self.user_group_type in [UserGroupType.FIXED_DLTC.value, UserGroupType.MOBILE_DLTC.value]
+        return self.user_group_type in [RegionType.FIXED_DLTC.value, RegionType.MOBILE_DLTC.value]
     
     @property
     def can_access_all_provinces(self) -> bool:
@@ -139,8 +139,8 @@ class UserGroup(BaseModel):
         else:
             return "Local"
     
-    def can_manage_user_group(self, target_group_code: str) -> bool:
-        """Check if this user group can manage another user group"""
+    def can_manage_region(self, target_group_code: str) -> bool:
+        """Check if this region can manage another region"""
         # National Help Desk can manage all
         if self.is_national_help_desk:
             return True

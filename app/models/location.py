@@ -1,7 +1,7 @@
 """
 Location Model
 Implements physical location management for testing centers, printing facilities, etc.
-Integrates with UserGroup and Office hierarchy for complete facility management.
+Integrates with Region and Office hierarchy for complete facility management.
 """
 
 from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Integer, Numeric, JSON
@@ -146,7 +146,7 @@ class Location(BaseModel):
     updated_by = Column(String(100), nullable=True)
     
     # Relationships
-    user_group = relationship("UserGroup", back_populates="locations")
+    region = relationship("Region", back_populates="locations")
     office = relationship("Office", back_populates="locations")
     user_assignments = relationship("UserLocationAssignment", back_populates="location")
     resources = relationship("LocationResource", back_populates="location", cascade="all, delete-orphan")
