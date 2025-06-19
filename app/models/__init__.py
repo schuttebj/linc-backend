@@ -19,9 +19,16 @@ from .audit import AuditLog, FileMetadata
 # Location Management Models (NEW)
 from .region import Region, RegionType, RegistrationStatus
 from .office import Office, OfficeType
-from .location import Location, InfrastructureType, OperationalStatus, LocationScope
+from .location import Location, InfrastructureType, OperationalStatus, LocationScope, LocationType
 from .location_resource import LocationResource, ResourceType, ResourceStatus
 from .user_location_assignment import UserLocationAssignment, AssignmentType, AssignmentStatus
+
+# NEW PERMISSION SYSTEM IMPORTS
+from .user_type import UserType, UserRegionAssignment, UserOfficeAssignment
+
+# LEGACY MODELS - TEMPORARY FOR MIGRATION
+# These will be removed once migration is complete
+from .user import Role, Permission  # TEMPORARY - Legacy models for migration
 
 __all__ = [
     "BaseModel",
@@ -36,7 +43,7 @@ __all__ = [
     "ApplicationStatus",
     "LicenseType",
     "User",
-    "UserType"
+    "UserType",
     "UserAuditLog",
     "UserStatus",
     "UserSession",
@@ -58,11 +65,18 @@ __all__ = [
     "UserLocationAssignment",
     "AssignmentType",
     "AssignmentStatus",
+    "LocationType",
     # Enums
     "Gender",
     "IdDocumentType", 
     "ValidationStatus",
     "AddressType",
     "PersonType",
-    "NationalityType"
+    "NationalityType",
+    # NEW PERMISSION SYSTEM
+    "UserRegionAssignment",
+    "UserOfficeAssignment",
+    # LEGACY - TEMPORARY
+    "Role",
+    "Permission",
 ] 

@@ -328,57 +328,103 @@ class PermissionEngine:
     
     # Database interaction methods
     async def _get_user_assignments(self, user_id: str) -> Dict[str, Any]:
-        """Get user with all role assignments"""
-        # This will be implemented with the new database schema
-        query = text("""
-            SELECT 
-                u.id,
-                u.system_type,
-                u.individual_permissions,
-                json_agg(DISTINCT jsonb_build_object(
-                    'region_id', ura.region_id,
-                    'region_role', ura.region_role,
-                    'is_active', ura.is_active
-                )) FILTER (WHERE ura.region_id IS NOT NULL) as region_assignments,
-                json_agg(DISTINCT jsonb_build_object(
-                    'office_id', uoa.office_id,
-                    'office_role', uoa.office_role,
-                    'is_active', uoa.is_active
-                )) FILTER (WHERE uoa.office_id IS NOT NULL) as office_assignments
-            FROM users u
-            LEFT JOIN user_region_assignments ura ON u.id = ura.user_id AND ura.is_active = true
-            LEFT JOIN user_office_assignments uoa ON u.id = uoa.user_id AND uoa.is_active = true
-            WHERE u.id = :user_id AND u.is_active = true
-            GROUP BY u.id, u.system_type, u.individual_permissions
-        """)
-        
-        result = self.db.execute(query, {"user_id": user_id}).fetchone()
-        
-        if not result:
+        """Get user with all role assignments using new models"""
+        try:
+            from app.models.user import User
+            from app.models.user_type import UserRegionAssignment, UserOfficeAssignment
+            from app.models.region import Region
+            from app.models.office import Office
+            
+            # Get user
+            user = self.db.query(User).filter(User.id == user_id, User.is_active == True).first()
+            
+            if not user:
+                return None
+            
+            # Get region assignments
+            region_assignments = []
+            region_query = self.db.query(UserRegionAssignment, Region).join(
+                Region, UserRegionAssignment.region_id == Region.id
+            ).filter(
+                UserRegionAssignment.user_id == user_id,
+                UserRegionAssignment.is_active == True
+            )
+            
+            for assignment, region in region_query.all():
+                region_assignments.append({
+                    "region_id": str(assignment.region_id),
+                    "region_role": assignment.assignment_type,
+                    "is_active": assignment.is_active
+                })
+            
+            # Get office assignments
+            office_assignments = []
+            office_query = self.db.query(UserOfficeAssignment, Office).join(
+                Office, UserOfficeAssignment.office_id == Office.id
+            ).filter(
+                UserOfficeAssignment.user_id == user_id,
+                UserOfficeAssignment.is_active == True
+            )
+            
+            for assignment, office in office_query.all():
+                office_assignments.append({
+                    "office_id": str(assignment.office_id),
+                    "office_role": assignment.assignment_type,
+                    "is_active": assignment.is_active
+                })
+            
+            return {
+                "user_id": str(user.id),
+                "system_type": user.user_type_id or "standard_user",
+                "individual_permissions": user.permission_overrides or [],
+                "region_assignments": region_assignments,
+                "office_assignments": office_assignments
+            }
+            
+        except Exception as e:
+            logger.error("Failed to get user assignments", user_id=user_id, error=str(e))
             return None
-        
-        return {
-            "user_id": str(result.id),
-            "system_type": result.system_type,
-            "individual_permissions": result.individual_permissions or [],
-            "region_assignments": result.region_assignments or [],
-            "office_assignments": result.office_assignments or []
-        }
     
     async def _get_system_permissions(self, system_type: SystemType) -> Set[str]:
-        """Get permissions for system type"""
-        query = text("""
-            SELECT permissions 
-            FROM user_types 
-            WHERE type_code = :system_type AND is_active = true
-        """)
-        
-        result = self.db.execute(query, {"system_type": system_type.value}).fetchone()
-        
-        if result and result.permissions:
-            return set(result.permissions)
-        
-        return set()
+        """Get permissions for system type using new UserType model"""
+        try:
+            from app.models.user_type import UserType
+            
+            user_type = self.db.query(UserType).filter(
+                UserType.id == system_type.value,
+                UserType.is_active == True
+            ).first()
+            
+            if user_type and user_type.default_permissions:
+                return set(user_type.default_permissions)
+            
+            # Fallback: Return default permissions based on system type
+            default_permissions = {
+                "super_admin": ["*"],  # Full access
+                "national_help_desk": [
+                    "user.read", "user.create", "user.update",
+                    "region.read", "region.create", "region.update",
+                    "office.read", "office.create", "office.update",
+                    "location.read", "location.create", "location.update",
+                    "person.read", "person.register", "person.update"
+                ],
+                "provincial_help_desk": [
+                    "user.read", "user.create", "user.update",
+                    "region.read", "office.read",
+                    "location.read", "location.update",
+                    "person.read", "person.register", "person.update"
+                ],
+                "standard_user": [
+                    "person.read", "person.register",
+                    "location.read"
+                ]
+            }
+            
+            return set(default_permissions.get(system_type.value, []))
+            
+        except Exception as e:
+            logger.error("Failed to get system permissions", system_type=system_type.value, error=str(e))
+            return set()
     
     async def _get_region_role_permissions(self, region_role: str) -> Set[str]:
         """Get permissions for region role"""
