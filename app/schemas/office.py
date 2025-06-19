@@ -291,7 +291,7 @@ class OfficeCreateNested(BaseModel):
     is_operational: Optional[bool] = Field(True, description="Operational status")
     requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
     
-    def to_flat_office_create(self) -> 'OfficeBase':
+    def to_flat_office_create(self):
         """Convert nested address structure to flat structure for database storage"""
         # Map frontend field names to backend field names
         daily_capacity = 0
@@ -328,7 +328,7 @@ class OfficeCreateNested(BaseModel):
             "is_operational": self.is_operational if self.is_operational is not None else True,
             "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
         }
-        return OfficeBase(**flat_data)
+        return flat_data
 
 class OfficeListFilter(BaseModel):
     """Office list filter schema"""
