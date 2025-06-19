@@ -12,7 +12,8 @@ from fastapi import HTTPException, status
 from passlib.context import CryptContext
 import structlog
 
-from app.models.user import User, UserSession, UserStatus, UserType, IDType
+from app.models.user import User, UserSession, UserStatus, IDType
+from app.models.user_type import UserType
 from app.models.region import Region
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserListFilter
