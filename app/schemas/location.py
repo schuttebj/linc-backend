@@ -10,8 +10,8 @@ from enum import Enum
 import uuid
 
 # Enums for validation
-class UserGroupTypeEnum(str, Enum):
-    """User group authority types"""
+class RegionTypeEnum(str, Enum):
+    """Region authority types"""
     FIXED_DLTC = "10"
     MOBILE_DLTC = "11"
     PRINTING_CENTER = "12"
@@ -109,14 +109,14 @@ class AssignmentStatusEnum(str, Enum):
     PENDING = "PENDING"
     EXPIRED = "EXPIRED"
 
-# UserGroup Schemas
-class UserGroupBase(BaseModel):
-    """Base user group schema"""
+# Region Schemas
+class RegionBase(BaseModel):
+    """Base region schema"""
     user_group_code: str = Field(..., min_length=4, max_length=4, description="4-character authority code")
     user_group_name: str = Field(..., min_length=1, max_length=100, description="Authority name")
-    user_group_type: UserGroupTypeEnum = Field(..., description="Authority type")
+    user_group_type: RegionTypeEnum = Field(..., description="Authority type")
     province_code: str = Field(..., min_length=2, max_length=2, description="Province code")
-    parent_group_id: Optional[str] = Field(None, description="Parent authority ID")
+    parent_region_id: Optional[str] = Field(None, description="Parent authority ID")
     is_provincial_help_desk: bool = Field(False, description="Provincial Help Desk flag")
     is_national_help_desk: bool = Field(False, description="National Help Desk flag")
     registration_status: RegistrationStatusEnum = Field(RegistrationStatusEnum.REGISTERED, description="Registration status")
@@ -128,13 +128,13 @@ class UserGroupBase(BaseModel):
     service_area_description: Optional[str] = Field(None, description="Service area description")
     is_active: bool = Field(True, description="Active status")
 
-class UserGroupCreate(UserGroupBase):
-    """User group creation schema"""
+class RegionCreate(RegionBase):
+    """Region creation schema"""
     
     @validator('user_group_code')
-    def validate_user_group_code(cls, v):
+    def validate_region_code(cls, v):
         if not v.isalnum():
-            raise ValueError('User group code must be alphanumeric')
+            raise ValueError('Region code must be alphanumeric')
         return v.upper()
     
     @validator('province_code')
@@ -144,8 +144,8 @@ class UserGroupCreate(UserGroupBase):
             raise ValueError(f'Invalid province code. Must be one of: {valid_provinces}')
         return v.upper()
 
-class UserGroupUpdate(BaseModel):
-    """User group update schema"""
+class RegionUpdate(BaseModel):
+    """Region update schema"""
     user_group_name: Optional[str] = Field(None, min_length=1, max_length=100)
     contact_person: Optional[str] = Field(None, max_length=100)
     phone_number: Optional[str] = Field(None, max_length=20)
@@ -156,14 +156,14 @@ class UserGroupUpdate(BaseModel):
     suspended_until: Optional[datetime] = None
     is_active: Optional[bool] = None
 
-class UserGroupResponse(BaseModel):
-    """User group response schema"""
+class RegionResponse(BaseModel):
+    """Region response schema"""
     id: str
     user_group_code: str
     user_group_name: str
     user_group_type: str
     province_code: str
-    parent_group_id: Optional[str]
+    parent_region_id: Optional[str]
     is_provincial_help_desk: bool
     is_national_help_desk: bool
     registration_status: str
@@ -219,7 +219,7 @@ class OfficeBase(BaseModel):
 
 class OfficeCreate(OfficeBase):
     """Office creation schema"""
-    user_group_id: str = Field(..., description="Parent user group ID")
+    region_id: str = Field(..., description="Parent region ID")
     
     @validator('office_code')
     def validate_office_code(cls, v):
@@ -247,7 +247,7 @@ class OfficeResponse(BaseModel):
     id: str
     office_code: str
     office_name: str
-    user_group_id: str
+    region_id: str
     office_type: str
     description: Optional[str]
     contact_person: Optional[str]
@@ -265,7 +265,7 @@ class OfficeResponse(BaseModel):
     is_primary_office: bool
     is_mobile_unit: bool
     
-    @validator('id', 'user_group_id', pre=True)
+    @validator('id', 'region_id', pre=True)
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -315,7 +315,7 @@ class LocationCreateNested(BaseModel):
     """Location creation schema with nested address support (matches frontend field names)"""
     location_code: str = Field(..., min_length=1, max_length=20, description="Location identifier")
     location_name: str = Field(..., min_length=1, max_length=200, description="Location name")
-    user_group_id: str = Field(..., description="Parent user group ID")
+    region_id: str = Field(..., description="Parent region ID")
     office_id: Optional[str] = Field(None, description="Parent office ID")
     infrastructure_type: InfrastructureTypeEnum = Field(..., description="Infrastructure type")
     
@@ -406,7 +406,7 @@ class LocationCreateNested(BaseModel):
 
 class LocationCreate(LocationBase):
     """Location creation schema (flat structure for backward compatibility)"""
-    user_group_id: str = Field(..., description="Parent user group ID")
+    region_id: str = Field(..., description="Parent region ID")
     office_id: Optional[str] = Field(None, description="Parent office ID")
 
 class LocationUpdate(BaseModel):
@@ -446,7 +446,7 @@ class LocationResponse(BaseModel):
     id: str
     location_code: str
     location_name: str
-    user_group_id: str
+    region_id: str
     office_id: Optional[str]
     infrastructure_type: str
     address_line_1: str
@@ -567,7 +567,7 @@ class LocationResponse(BaseModel):
                 return 0.0
         return v
     
-    @validator('id', 'user_group_id', 'office_id', pre=True)
+    @validator('id', 'region_id', 'office_id', pre=True)
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -779,10 +779,10 @@ class UserLocationAssignmentResponse(BaseModel):
         from_attributes = True
 
 # List and Filter Schemas
-class UserGroupListFilter(BaseModel):
-    """User group list filter schema"""
+class RegionListFilter(BaseModel):
+    """Region list filter schema"""
     province_code: Optional[str] = None
-    user_group_type: Optional[UserGroupTypeEnum] = None
+    region_type: Optional[RegionTypeEnum] = None
     registration_status: Optional[RegistrationStatusEnum] = None
     is_active: Optional[bool] = None
     search: Optional[str] = None
@@ -793,7 +793,7 @@ class LocationListFilter(BaseModel):
     infrastructure_type: Optional[InfrastructureTypeEnum] = None
     operational_status: Optional[OperationalStatusEnum] = None
     location_scope: Optional[LocationScopeEnum] = None
-    user_group_id: Optional[str] = None
+    region_id: Optional[str] = None
     is_active: Optional[bool] = None
     is_public: Optional[bool] = None
     search: Optional[str] = None
@@ -825,12 +825,12 @@ class LocationStatistics(BaseModel):
     locations_by_type: Dict[str, int]
     locations_by_province: Dict[str, int]
 
-class UserGroupStatistics(BaseModel):
-    """User group statistics schema"""
-    total_user_groups: int
-    active_user_groups: int
-    user_groups_by_type: Dict[str, int]
-    user_groups_by_province: Dict[str, int]
+class RegionStatistics(BaseModel):
+    """Region statistics schema"""
+    total_regions: int
+    active_regions: int
+    regions_by_type: Dict[str, int]
+    regions_by_province: Dict[str, int]
 
 class ResourceStatistics(BaseModel):
     """Resource statistics schema"""
