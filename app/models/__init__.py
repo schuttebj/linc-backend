@@ -19,7 +19,7 @@ from .audit import AuditLog, FileMetadata
 # Location Management Models (NEW)
 from .region import Region, RegionType, RegistrationStatus
 from .office import Office, OfficeType
-from .location import Location, InfrastructureType, OperationalStatus, LocationScope, LocationType
+from .location import Location, InfrastructureType, OperationalStatus, LocationScope
 from .location_resource import LocationResource, ResourceType, ResourceStatus
 from .user_location_assignment import UserLocationAssignment, AssignmentType, AssignmentStatus
 
@@ -65,7 +65,6 @@ __all__ = [
     "UserLocationAssignment",
     "AssignmentType",
     "AssignmentStatus",
-    "LocationType",
     # Enums
     "Gender",
     "IdDocumentType", 

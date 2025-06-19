@@ -66,8 +66,8 @@ class Location(BaseModel):
                           comment="Location display name")
     
     # Hierarchical relationships
-    user_group_id = Column(UUID(as_uuid=True), ForeignKey('user_groups.id'), nullable=False,
-                          comment="Parent user group authority")
+    region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id'), nullable=False,
+                          comment="Parent region authority")
     office_id = Column(UUID(as_uuid=True), ForeignKey('offices.id'), nullable=True,
                       comment="Parent office (optional)")
     

@@ -119,14 +119,14 @@ class User(BaseModel):
     office_location = Column(String(200), nullable=True, comment="Physical office location")
     
     # NEW PERMISSION SYSTEM FIELDS
-    user_type_id = Column(UUID(as_uuid=True), ForeignKey('user_types.id'), nullable=False,
+    user_type_id = Column(String(50), ForeignKey('user_types.id'), nullable=True,
                          comment="System type: super_admin, national_help_desk, provincial_help_desk, standard_user")
     assigned_province = Column(String(2), nullable=True, index=True,
                               comment="Assigned province for provincial help desk users")
     permission_overrides = Column(JSON, nullable=True,
                                 comment="Individual permission overrides - rare usage")
     
-    # Region assignment (replaces legacy user group)
+    # Region assignment (replaces legacy user group)  
     region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id'), nullable=True,
                       comment="Primary region assignment")
     
