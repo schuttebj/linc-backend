@@ -47,6 +47,35 @@ class OfficeTypeEnum(str, Enum):
     MOBILE = "mobile"
     SUPPORT = "support"
 
+class AssignmentTypeEnum(str, Enum):
+    """Assignment types"""
+    PRIMARY = "PRIMARY"
+    SECONDARY = "SECONDARY"
+    TEMPORARY = "TEMPORARY"
+    BACKUP = "BACKUP"
+    TRAINING = "TRAINING"
+    SUPERVISION = "SUPERVISION"
+    MAINTENANCE = "MAINTENANCE"
+
+class AssignmentStatusEnum(str, Enum):
+    """Assignment status"""
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    SUSPENDED = "SUSPENDED"
+    PENDING = "PENDING"
+    EXPIRED = "EXPIRED"
+
+# Address Schema (for nested address support)
+class AddressBase(BaseModel):
+    """Address schema for nested address support"""
+    address_line_1: str = Field(..., min_length=1, max_length=100, description="Address line 1")
+    address_line_2: Optional[str] = Field(None, max_length=100, description="Address line 2")
+    address_line_3: Optional[str] = Field(None, max_length=100, description="Address line 3")
+    city: str = Field(..., min_length=1, max_length=50, description="City")
+    province_code: str = Field(..., min_length=2, max_length=2, description="Province code")
+    postal_code: Optional[str] = Field(None, max_length=10, description="Postal code")
+    country_code: str = Field("ZA", min_length=2, max_length=2, description="Country code")
+
 # Office Schemas
 class OfficeBase(BaseModel):
     """Base office schema"""
@@ -223,6 +252,84 @@ class OfficeResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class OfficeCreateNested(BaseModel):
+    """Office creation schema with nested address support (matches frontend field names)"""
+    office_code: str = Field(..., min_length=1, max_length=10, description="Office code")
+    office_name: str = Field(..., min_length=1, max_length=100, description="Office name")
+    region_id: str = Field(..., description="Parent region ID")
+    office_type: OfficeTypeEnum = Field(OfficeTypeEnum.BRANCH, description="Office type")
+    infrastructure_type: InfrastructureTypeEnum = Field(..., description="Infrastructure type")
+    
+    # Nested address object
+    address: AddressBase = Field(..., description="Address information")
+    
+    # Geographic coordinates
+    latitude: Optional[float] = Field(None, ge=-90, le=90, description="Latitude")
+    longitude: Optional[float] = Field(None, ge=-180, le=180, description="Longitude")
+    
+    # Operational configuration
+    operational_status: OperationalStatusEnum = Field(OperationalStatusEnum.OPERATIONAL, description="Operational status")
+    office_scope: OfficeScopeEnum = Field(OfficeScopeEnum.LOCAL, description="Service scope")
+    
+    # Contact information (using frontend field names)
+    contact_person: Optional[str] = Field(None, max_length=100, description="Contact person")
+    phone_number: Optional[str] = Field(None, max_length=20, description="Phone number")
+    email_address: Optional[str] = Field(None, max_length=255, description="Email address")  # Frontend uses email_address
+    
+    # Capacity fields (using frontend field names)
+    max_users: Optional[int] = Field(None, ge=0, description="Maximum users")  # Frontend uses max_users
+    max_daily_capacity: Optional[int] = Field(None, ge=0, description="Maximum daily capacity")  # Frontend uses max_daily_capacity
+    
+    # Optional fields that may come from frontend
+    current_load: Optional[int] = Field(0, ge=0, description="Current load")
+    max_concurrent_operations: Optional[int] = Field(1, ge=1, description="Max concurrent operations")
+    staff_count: Optional[int] = Field(0, ge=0, description="Staff count")
+    
+    # Status flags
+    is_active: Optional[bool] = Field(True, description="Active status")
+    is_public: Optional[bool] = Field(True, description="Public visibility")
+    is_operational: Optional[bool] = Field(True, description="Operational status")
+    requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
+    
+    def to_flat_office_create(self) -> 'OfficeBase':
+        """Convert nested address structure to flat structure for database storage"""
+        # Map frontend field names to backend field names
+        daily_capacity = 0
+        if self.max_daily_capacity is not None:
+            daily_capacity = self.max_daily_capacity
+        elif self.max_users is not None:
+            daily_capacity = self.max_users
+        
+        flat_data = {
+            "office_code": self.office_code,
+            "office_name": self.office_name,
+            "office_type": self.office_type,
+            "infrastructure_type": self.infrastructure_type,
+            "address_line_1": self.address.address_line_1,
+            "address_line_2": self.address.address_line_2,
+            "address_line_3": self.address.address_line_3,
+            "city": self.address.city,
+            "province_code": self.address.province_code,
+            "postal_code": self.address.postal_code,
+            "country_code": self.address.country_code,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "operational_status": self.operational_status,
+            "office_scope": self.office_scope,
+            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
+            "current_load": self.current_load or 0,
+            "max_concurrent_operations": self.max_concurrent_operations or 1,
+            "staff_count": self.staff_count or 0,
+            "contact_person": self.contact_person,
+            "phone_number": self.phone_number,
+            "email": self.email_address,  # Map email_address -> email
+            "is_active": self.is_active if self.is_active is not None else True,
+            "is_public": self.is_public if self.is_public is not None else True,
+            "is_operational": self.is_operational if self.is_operational is not None else True,
+            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
+        }
+        return OfficeBase(**flat_data)
+
 class OfficeListFilter(BaseModel):
     """Office list filter schema"""
     province_code: Optional[str] = None
@@ -241,4 +348,87 @@ class OfficeStatistics(BaseModel):
     total_daily_capacity: int
     offices_by_type: Dict[str, int]
     offices_by_province: Dict[str, int]
-    offices_by_infrastructure: Dict[str, int] 
+    offices_by_infrastructure: Dict[str, int]
+
+# User Office Assignment Schemas
+class UserOfficeAssignmentBase(BaseModel):
+    """Base user office assignment schema"""
+    assignment_type: AssignmentTypeEnum = Field(AssignmentTypeEnum.SECONDARY, description="Assignment type")
+    assignment_status: AssignmentStatusEnum = Field(AssignmentStatusEnum.ACTIVE, description="Assignment status")
+    effective_date: datetime = Field(..., description="Effective date")
+    expiry_date: Optional[datetime] = Field(None, description="Expiry date")
+    access_level: str = Field("standard", max_length=20, description="Access level")
+    can_manage_office: bool = Field(False, description="Can manage office")
+    can_assign_others: bool = Field(False, description="Can assign others")
+    can_view_reports: bool = Field(True, description="Can view reports")
+    can_manage_resources: bool = Field(False, description="Can manage resources")
+    work_schedule: Optional[str] = Field(None, description="Work schedule")
+    responsibilities: Optional[str] = Field(None, description="Responsibilities")
+    assignment_reason: Optional[str] = Field(None, description="Assignment reason")
+    notes: Optional[str] = Field(None, description="Notes")
+    is_active: bool = Field(True, description="Active status")
+
+class UserOfficeAssignmentCreate(UserOfficeAssignmentBase):
+    """User office assignment creation schema"""
+    user_id: str = Field(..., description="User ID - Must be existing user")
+    office_id: Optional[str] = Field(None, description="Office ID - Will be set from URL parameter")
+    
+    # Optional user creation data for new users (if user_id is "new")
+    create_new_user: Optional[bool] = Field(False, description="Create new user if user_id is 'new'")
+    new_user_data: Optional[Dict[str, Any]] = Field(None, description="New user data if creating user")
+
+class UserOfficeAssignmentUpdate(BaseModel):
+    """User office assignment update schema"""
+    assignment_type: Optional[AssignmentTypeEnum] = None
+    assignment_status: Optional[AssignmentStatusEnum] = None
+    effective_date: Optional[datetime] = None
+    expiry_date: Optional[datetime] = None
+    access_level: Optional[str] = Field(None, max_length=20)
+    can_manage_office: Optional[bool] = None
+    can_assign_others: Optional[bool] = None
+    can_view_reports: Optional[bool] = None
+    can_manage_resources: Optional[bool] = None
+    work_schedule: Optional[str] = None
+    responsibilities: Optional[str] = None
+    assignment_reason: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class UserOfficeAssignmentResponse(BaseModel):
+    """User office assignment response schema"""
+    id: str
+    user_id: str
+    office_id: str
+    assignment_type: str
+    assignment_status: str
+    effective_date: datetime
+    expiry_date: Optional[datetime]
+    access_level: str
+    can_manage_office: bool
+    can_assign_others: bool
+    can_view_reports: bool
+    can_manage_resources: bool
+    work_schedule: Optional[str]
+    responsibilities: Optional[str]
+    assigned_by: Optional[str]
+    assignment_reason: Optional[str]
+    notes: Optional[str]
+    last_activity_date: Optional[datetime]
+    total_hours_worked: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    is_valid_assignment: bool
+    is_primary_assignment: bool
+    is_temporary_assignment: bool
+    days_until_expiry: int
+    assignment_duration_days: int
+    
+    @validator('id', 'user_id', 'office_id', pre=True)
+    def convert_uuid_to_str(cls, v):
+        if isinstance(v, uuid.UUID):
+            return str(v)
+        return v
+    
+    class Config:
+        from_attributes = True 
