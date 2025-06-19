@@ -197,37 +197,57 @@ class OfficeResponse(BaseModel):
         return v
     
     @validator('full_office_code', pre=True)
-    def compute_full_office_code(cls, v):
-        # For now, just return the value as-is or set a default
-        return v or "Unknown-Office"
+    def compute_full_office_code(cls, v, values):
+        if 'region_id' in values and 'office_code' in values:
+            return f"{values.get('region_id', '')}-{values.get('office_code', '')}"
+        return v or ""
     
     @validator('is_primary_office', pre=True)
-    def compute_is_primary_office(cls, v):
-        return v if v is not None else False
+    def compute_is_primary_office(cls, v, values):
+        return values.get('office_type') == 'primary'
     
     @validator('is_mobile_unit', pre=True)
-    def compute_is_mobile_unit(cls, v):
-        return v if v is not None else False
+    def compute_is_mobile_unit(cls, v, values):
+        return values.get('office_type') == 'mobile'
     
     @validator('available_capacity', pre=True)
-    def compute_available_capacity(cls, v):
-        return v if v is not None else 0
+    def compute_available_capacity(cls, v, values):
+        daily_capacity = values.get('daily_capacity', 0)
+        current_load = values.get('current_load', 0)
+        return max(0, daily_capacity - current_load)
     
     @validator('capacity_utilization', pre=True)
-    def compute_capacity_utilization(cls, v):
-        return v if v is not None else 0.0
+    def compute_capacity_utilization(cls, v, values):
+        daily_capacity = values.get('daily_capacity', 0)
+        current_load = values.get('current_load', 0)
+        if daily_capacity > 0:
+            return round((current_load / daily_capacity) * 100, 2)
+        return 0.0
     
     @validator('full_address', pre=True)
-    def compute_full_address(cls, v):
-        return v or "Address not available"
+    def compute_full_address(cls, v, values):
+        parts = []
+        if values.get('address_line_1'):
+            parts.append(values['address_line_1'])
+        if values.get('address_line_2'):
+            parts.append(values['address_line_2'])
+        if values.get('address_line_3'):
+            parts.append(values['address_line_3'])
+        if values.get('city'):
+            parts.append(values['city'])
+        if values.get('postal_code'):
+            parts.append(values['postal_code'])
+        return ', '.join(parts)
     
     @validator('is_dltc', pre=True)
-    def compute_is_dltc(cls, v):
-        return v if v is not None else False
+    def compute_is_dltc(cls, v, values):
+        infrastructure_type = values.get('infrastructure_type', '')
+        return infrastructure_type in ['10', '11']  # FIXED_DLTC, MOBILE_DLTC
     
     @validator('is_printing_facility', pre=True)
-    def compute_is_printing_facility(cls, v):
-        return v if v is not None else False
+    def compute_is_printing_facility(cls, v, values):
+        infrastructure_type = values.get('infrastructure_type', '')
+        return infrastructure_type in ['12', '13']  # PRINTING_CENTER, COMBINED_CENTER
     
     class Config:
         from_attributes = True
@@ -271,7 +291,44 @@ class OfficeCreateNested(BaseModel):
     is_operational: Optional[bool] = Field(True, description="Operational status")
     requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
     
-    # Removed instance method that was causing callable schema issues
+    def to_flat_office_create(self):
+        """Convert nested address structure to flat structure for database storage"""
+        # Map frontend field names to backend field names
+        daily_capacity = 0
+        if self.max_daily_capacity is not None:
+            daily_capacity = self.max_daily_capacity
+        elif self.max_users is not None:
+            daily_capacity = self.max_users
+        
+        flat_data = {
+            "office_code": self.office_code,
+            "office_name": self.office_name,
+            "office_type": self.office_type,
+            "infrastructure_type": self.infrastructure_type,
+            "address_line_1": self.address.address_line_1,
+            "address_line_2": self.address.address_line_2,
+            "address_line_3": self.address.address_line_3,
+            "city": self.address.city,
+            "province_code": self.address.province_code,
+            "postal_code": self.address.postal_code,
+            "country_code": self.address.country_code,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "operational_status": self.operational_status,
+            "office_scope": self.office_scope,
+            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
+            "current_load": self.current_load or 0,
+            "max_concurrent_operations": self.max_concurrent_operations or 1,
+            "staff_count": self.staff_count or 0,
+            "contact_person": self.contact_person,
+            "phone_number": self.phone_number,
+            "email": self.email_address,  # Map email_address -> email
+            "is_active": self.is_active if self.is_active is not None else True,
+            "is_public": self.is_public if self.is_public is not None else True,
+            "is_operational": self.is_operational if self.is_operational is not None else True,
+            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
+        }
+        return flat_data
 
 class OfficeListFilter(BaseModel):
     """Office list filter schema"""

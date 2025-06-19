@@ -5,7 +5,7 @@ Pydantic models for location, user group, office, and resource management
 
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 import uuid
 
@@ -131,13 +131,15 @@ class RegionBase(BaseModel):
 class RegionCreate(RegionBase):
     """Region creation schema"""
     
-    @validator('user_group_code')
+    @field_validator('user_group_code')
+    @classmethod
     def validate_region_code(cls, v):
         if not v.isalnum():
             raise ValueError('Region code must be alphanumeric')
         return v.upper()
     
-    @validator('province_code')
+    @field_validator('province_code')
+    @classmethod
     def validate_province_code(cls, v):
         valid_provinces = ['WC', 'GP', 'KZN', 'EC', 'FS', 'NW', 'NC', 'MP', 'LP', 'NAT']
         if v.upper() not in valid_provinces:
@@ -180,7 +182,8 @@ class RegionResponse(BaseModel):
     is_dltc: bool
     can_access_all_provinces: bool
     
-    @validator('id', pre=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -221,7 +224,8 @@ class OfficeCreate(OfficeBase):
     """Office creation schema"""
     region_id: str = Field(..., description="Parent region ID")
     
-    @validator('office_code')
+    @field_validator('office_code')
+    @classmethod
     def validate_office_code(cls, v):
         if not v.isalpha() or not v.isupper():
             raise ValueError('Office code must be a single uppercase letter')
@@ -264,8 +268,14 @@ class OfficeResponse(BaseModel):
     full_office_code: str
     is_primary_office: bool
     is_mobile_unit: bool
+    available_capacity: int
+    capacity_utilization: float
+    full_address: str
+    is_dltc: bool
+    is_printing_facility: bool
     
-    @validator('id', 'region_id', pre=True)
+    @field_validator('id', 'region_id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -357,6 +367,52 @@ class LocationCreateNested(BaseModel):
     is_active: Optional[bool] = Field(True, description="Active status")
     is_public: Optional[bool] = Field(True, description="Public visibility")
     requires_appointment: Optional[bool] = Field(False, description="Requires appointment")
+    
+    def to_flat_location_create(self) -> 'LocationBase':
+        """Convert nested address structure to flat structure for database storage"""
+        # Map frontend field names to backend field names
+        daily_capacity = 0
+        if self.max_daily_capacity is not None:
+            daily_capacity = self.max_daily_capacity
+        elif self.max_users is not None:
+            daily_capacity = self.max_users
+        
+        flat_data = {
+            "location_code": self.location_code,
+            "location_name": self.location_name,
+            "infrastructure_type": self.infrastructure_type,
+            "address_line_1": self.address.address_line_1,
+            "address_line_2": self.address.address_line_2,
+            "address_line_3": self.address.address_line_3,
+            "city": self.address.city,
+            "province_code": self.address.province_code,
+            "postal_code": self.address.postal_code,
+            "country_code": self.address.country_code,
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "operational_status": self.operational_status,
+            "location_scope": self.location_scope,
+            "daily_capacity": daily_capacity,  # Map from max_daily_capacity or max_users
+            "current_load": self.current_load or 0,
+            "max_concurrent_operations": self.max_concurrent_operations or 1,
+            "services_offered": self.services_offered,
+            "operating_hours": self.operating_hours,
+            "special_hours": self.special_hours,
+            "contact_person": self.contact_person,
+            "phone_number": self.phone_number,
+            "fax_number": self.fax_number,
+            "email": self.email_address,  # Map email_address -> email
+            "facility_description": self.facility_description,
+            "accessibility_features": self.accessibility_features,
+            "parking_availability": self.parking_availability,
+            "public_transport_access": self.public_transport_access,
+            "operational_notes": self.operational_notes,
+            "public_instructions": self.public_instructions,
+            "is_active": self.is_active if self.is_active is not None else True,
+            "is_public": self.is_public if self.is_public is not None else True,
+            "requires_appointment": self.requires_appointment if self.requires_appointment is not None else False,
+        }
+        return LocationBase(**flat_data)
 
 class LocationCreate(LocationBase):
     """Location creation schema (flat structure for backward compatibility)"""
@@ -435,78 +491,12 @@ class LocationResponse(BaseModel):
     requires_appointment: bool
     created_at: datetime
     updated_at: datetime
-    full_address: str
-    is_dltc: bool
-    is_printing_facility: bool
-    available_capacity: int
-    capacity_utilization: float
-    is_operational: bool
-    
-    @validator('is_operational', pre=True)
-    def compute_is_operational(cls, v):
-        """Compute is_operational from the model method"""
-        if hasattr(v, '__call__'):  # If it's a method
-            try:
-                return v()  # Call the method
-            except:
-                return True  # Default fallback
-        return v  # If it's already a boolean value
-    
-    @validator('full_address', pre=True)
-    def compute_full_address(cls, v):
-        """Compute full_address from the model property"""
-        if hasattr(v, '__call__') or hasattr(v, '__get__'):  # If it's a method or property
-            try:
-                return str(v)  # Convert to string
-            except:
-                return "Address not available"  # Default fallback
-        return v
-    
-    @validator('is_dltc', pre=True)
-    def compute_is_dltc(cls, v):
-        """Compute is_dltc from infrastructure type"""
-        if hasattr(v, '__call__') or hasattr(v, '__get__'):
-            try:
-                return bool(v)
-            except:
-                return False  # Default fallback
-        return v
-    
-    @validator('is_printing_facility', pre=True)
-    def compute_is_printing_facility(cls, v):
-        """Compute is_printing_facility from infrastructure type"""
-        if hasattr(v, '__call__') or hasattr(v, '__get__'):
-            try:
-                return bool(v)
-            except:
-                return False  # Default fallback
-        return v
-    
-    @validator('available_capacity', pre=True)
-    def compute_available_capacity(cls, v):
-        """Compute available_capacity"""
-        if hasattr(v, '__call__') or hasattr(v, '__get__'):
-            try:
-                return int(v)
-            except:
-                return 0  # Default fallback
-        return v
-    
-    @validator('capacity_utilization', pre=True)
-    def compute_capacity_utilization(cls, v):
-        """Compute capacity_utilization percentage"""
-        if hasattr(v, '__call__') or hasattr(v, '__get__'):
-            try:
-                return float(v)
-            except:
-                return 0.0  # Default fallback
-        return v
-    
-    @validator('id', 'region_id', 'office_id', pre=True)
-    def convert_uuid_to_str(cls, v):
-        if isinstance(v, uuid.UUID):
-            return str(v)
-        return v
+    full_address: str = ""
+    is_dltc: bool = False
+    is_printing_facility: bool = False
+    available_capacity: int = 0
+    capacity_utilization: float = 0.0
+    is_operational: bool = True
     
     class Config:
         from_attributes = True
@@ -613,17 +603,11 @@ class LocationResourceResponse(BaseModel):
     requires_certification: bool
     created_at: datetime
     updated_at: datetime
-    is_operational: bool
-    needs_maintenance: bool
-    is_under_warranty: bool
-    available_capacity_per_hour: int
-    available_capacity_per_day: int
-    
-    @validator('id', 'location_id', pre=True)
-    def convert_uuid_to_str(cls, v):
-        if isinstance(v, uuid.UUID):
-            return str(v)
-        return v
+    is_operational: bool = True
+    needs_maintenance: bool = False
+    is_under_warranty: bool = False
+    available_capacity_per_hour: int = 0
+    available_capacity_per_day: int = 0
     
     class Config:
         from_attributes = True
@@ -698,17 +682,11 @@ class UserLocationAssignmentResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    is_valid_assignment: bool
-    is_primary_assignment: bool
-    is_temporary_assignment: bool
-    days_until_expiry: int
-    assignment_duration_days: int
-    
-    @validator('id', 'user_id', 'location_id', 'office_id', pre=True)
-    def convert_uuid_to_str(cls, v):
-        if isinstance(v, uuid.UUID):
-            return str(v)
-        return v
+    is_valid_assignment: bool = True
+    is_primary_assignment: bool = False
+    is_temporary_assignment: bool = False
+    days_until_expiry: int = 0
+    assignment_duration_days: int = 0
     
     class Config:
         from_attributes = True

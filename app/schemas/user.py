@@ -5,7 +5,7 @@ Pydantic models for user authentication and authorization
 
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, EmailStr, validator, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from enum import Enum
 import uuid
 
@@ -77,7 +77,8 @@ class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8, description="New password")
     
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
@@ -94,7 +95,8 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)
     
-    @validator('new_password')
+    @field_validator('new_password')
+    @classmethod
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
@@ -125,7 +127,8 @@ class UserCreate(UserBase):
     is_active: bool = Field(True, description="Active status")
     require_password_change: bool = Field(False, description="Require password change on first login")
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
@@ -176,7 +179,7 @@ class UserResponse(BaseModel):
     email: str
     first_name: str
     last_name: str
-    full_name: Optional[str] = None
+    full_name: str = ""
     display_name: Optional[str]
     phone_number: Optional[str]
     employee_id: Optional[str]
@@ -196,15 +199,19 @@ class UserResponse(BaseModel):
     updated_at: datetime
     roles: List["RoleResponse"] = []
     
-    @validator('full_name', pre=True, always=True)
-    def generate_full_name(cls, v):
+    @model_validator(mode='before')
+    @classmethod
+    def generate_full_name(cls, values):
         """Generate full_name from first_name and last_name if not provided"""
-        # For now, just return the value as-is or set a default
-        if v is None:
-            return "Unknown User"
-        return v
+        if isinstance(values, dict):
+            if 'full_name' not in values or not values['full_name']:
+                first_name = values.get('first_name', '')
+                last_name = values.get('last_name', '')
+                values['full_name'] = f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown User"
+        return values
     
-    @validator('id', pre=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -274,7 +281,8 @@ class RoleResponse(BaseModel):
     created_at: datetime
     permissions: List["PermissionResponse"] = []
     
-    @validator('id', pre=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -328,7 +336,8 @@ class PermissionResponse(BaseModel):
     is_system_permission: bool
     created_at: datetime
     
-    @validator('id', pre=True)
+    @field_validator('id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -355,7 +364,8 @@ class UserAuditLogResponse(BaseModel):
     created_at: datetime
     user: Optional[UserResponse]
     
-    @validator('id', 'user_id', pre=True)
+    @field_validator('id', 'user_id', mode='before')
+    @classmethod
     def convert_uuid_to_str(cls, v):
         if isinstance(v, uuid.UUID):
             return str(v)
@@ -435,4 +445,71 @@ class UserRoleResponse(BaseModel):
 UserLoginResponse.model_rebuild()
 UserResponse.model_rebuild()
 RoleResponse.model_rebuild()
-UserAuditLogResponse.model_rebuild() 
+UserAuditLogResponse.model_rebuild()
+
+class PasswordChangeRequest(BaseModel):
+    """Password change request schema"""
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password")
+
+class PasswordResetRequest(BaseModel):
+    """Password reset request schema"""
+    email: EmailStr = Field(..., description="Email address")
+    new_password: str = Field(..., min_length=8, description="New password")
+
+class LoginRequest(BaseModel):
+    """Login request schema"""
+    username: str = Field(..., min_length=1, description="Username")
+    password: str = Field(..., min_length=1, description="Password")
+
+class UserDetailResponse(BaseModel):
+    """User detail response schema"""
+    id: str
+    username: str
+    email: str
+    first_name: str
+    last_name: str
+    full_name: str = ""
+    user_type_id: Optional[str]
+    assigned_province: Optional[str]
+    permission_overrides: Optional[Dict[str, Any]]
+    is_active: bool
+    is_verified: bool
+    last_login: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class UserListResponse(BaseModel):
+    """User list response schema"""
+    id: str
+    username: str
+    email: str
+    first_name: str
+    last_name: str
+    full_name: str = ""
+    user_type_id: Optional[str]
+    assigned_province: Optional[str]
+    is_active: bool
+    is_verified: bool
+    last_login: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class UserSessionResponse(BaseModel):
+    """User session response schema"""
+    id: str
+    user_id: str
+    session_token: str
+    expires_at: datetime
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True 
