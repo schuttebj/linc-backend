@@ -10,7 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.permissions import require_permission, require_any_permission
+from app.core.permission_middleware import require_permission, require_any_permission
 from app.crud.location import location, location_create, location_update, location_delete
 from app.schemas.location import (
     LocationCreate,
@@ -32,7 +32,7 @@ def create_location(
     *,
     db: Session = Depends(get_db),
     location_in: LocationCreateNested,
-    current_user: User = Depends(require_permission("location_create"))
+    current_user: User = Depends(require_permission("location.create"))
 ):
     """
     Create new location with nested address support.
@@ -69,7 +69,7 @@ def create_location(
 @router.get("/", response_model=List[LocationResponse])
 def read_locations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read")),
+    current_user: User = Depends(require_permission("location.read")),
     skip: int = 0,
     limit: int = 100
 ):
@@ -86,7 +86,7 @@ def read_locations(
 def get_location_statistics(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get location statistics.
@@ -102,7 +102,7 @@ def read_location(
     *,
     db: Session = Depends(get_db),
     location_id: UUID,
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get location by ID.
@@ -133,7 +133,7 @@ def update_location(
     db: Session = Depends(get_db),
     location_id: UUID,
     location_in: LocationUpdate,
-    current_user: User = Depends(require_permission("location_update"))
+    current_user: User = Depends(require_permission("location.update"))
 ):
     """
     Update location.
@@ -170,7 +170,7 @@ def delete_location(
     *,
     db: Session = Depends(get_db),
     location_id: UUID,
-    current_user: User = Depends(require_permission("location_delete"))
+    current_user: User = Depends(require_permission("location.delete"))
 ):
     """
     Delete location (soft delete).
@@ -201,7 +201,7 @@ def get_locations_by_province(
     *,
     db: Session = Depends(get_db),
     province_code: str,
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get all locations in a specific province.
@@ -223,7 +223,7 @@ def get_locations_by_province(
 def get_dltc_locations(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get all DLTC locations.
@@ -246,7 +246,7 @@ def get_dltc_locations(
 def get_printing_locations(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get all printing locations.
@@ -269,7 +269,7 @@ def get_printing_locations(
 def get_operational_locations(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get all operationally active locations.
@@ -292,7 +292,7 @@ def get_operational_locations(
 def get_public_locations(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get all public-facing locations.
@@ -315,7 +315,7 @@ def get_public_locations(
 def get_locations_with_capacity(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("location_read")),
+    current_user: User = Depends(require_permission("location.read")),
     min_capacity: int = Query(1, description="Minimum available capacity")
 ):
     """
@@ -341,7 +341,7 @@ def update_location_load(
     db: Session = Depends(get_db),
     location_id: UUID,
     new_load: int = Query(..., description="New load value"),
-    current_user: User = Depends(require_permission("location_update"))
+    current_user: User = Depends(require_permission("location.update"))
 ):
     """
     Update location's current load.
@@ -372,7 +372,7 @@ def validate_location_code(
     *,
     db: Session = Depends(get_db),
     location_code: str,
-    current_user: User = Depends(require_permission("location_create"))
+    current_user: User = Depends(require_permission("location.create"))
 ):
     """
     Check if location code is available.
@@ -395,7 +395,7 @@ def assign_staff_to_location(
     db: Session = Depends(get_db),
     location_id: UUID,
     assignment_in: UserLocationAssignmentCreate,
-    current_user: User = Depends(require_any_permission("location_create", "user_group_update"))
+    current_user: User = Depends(require_any_permission("location.create", "user_group.update"))
 ):
     """
     Assign staff to location.
@@ -429,7 +429,7 @@ def get_location_staff(
     *,
     db: Session = Depends(get_db),
     location_id: UUID,
-    current_user: User = Depends(require_permission("location_read"))
+    current_user: User = Depends(require_permission("location.read"))
 ):
     """
     Get staff assignments for location.
@@ -458,7 +458,7 @@ def update_staff_assignment(
     location_id: UUID,
     assignment_id: UUID,
     assignment_in: UserLocationAssignmentUpdate,
-    current_user: User = Depends(require_any_permission("location_update", "user_group_update"))
+    current_user: User = Depends(require_any_permission("location.update", "user_group.update"))
 ):
     """
     Update staff assignment.
@@ -498,7 +498,7 @@ def remove_staff_assignment(
     db: Session = Depends(get_db),
     location_id: UUID,
     assignment_id: UUID,
-    current_user: User = Depends(require_any_permission("location_delete", "user_group_update"))
+    current_user: User = Depends(require_any_permission("location.delete", "user_group.update"))
 ):
     """
     Remove staff assignment from location.
