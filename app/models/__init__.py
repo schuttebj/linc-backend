@@ -11,7 +11,9 @@ from .license import (
     ApplicationStatus,
     LicenseType
 )
-from .user import User, Role, Permission, UserAuditLog, UserStatus, UserSession
+from .user import User, UserAuditLog, UserStatus, UserSession
+# LEGACY IMPORTS REMOVED - Role and Permission models no longer available
+# Use new permission system: from .permission_system import UserType, RegionRole, OfficeRole
 # UserProfile functionality consolidated into User model
 from .audit import AuditLog, FileMetadata
 
@@ -35,8 +37,8 @@ __all__ = [
     "ApplicationStatus",
     "LicenseType",
     "User",
-    "Role",
-    "Permission", 
+    # "Role",  # REMOVED - Use new permission system
+    # "Permission",  # REMOVED - Use new permission system
     "UserAuditLog",
     "UserStatus",
     "UserSession",
