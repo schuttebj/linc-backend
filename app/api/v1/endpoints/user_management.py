@@ -12,7 +12,7 @@ import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.permissions import require_permission, require_any_permission
+from app.core.permission_middleware import require_permission, require_any_permission
 from app.crud.user_management import user_management
 from app.schemas.user_management import (
     UserProfileCreate, UserProfileUpdate, UserProfileResponse,
@@ -38,7 +38,7 @@ def create_user_profile(
     *,
     db: Session = Depends(get_db),
     user_data: UserProfileCreate,
-    current_user: User = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user.create"))
 ):
     """
     Create new user profile.
@@ -100,7 +100,7 @@ def list_user_profiles(
     user_group_code: Optional[str] = Query(None, description="Filter by user group"),
     search: Optional[str] = Query(None, description="Search users"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user.read"))
 ):
     """
     List user profiles with filtering and pagination.
@@ -171,7 +171,7 @@ def list_user_profiles(
 def get_user_profile_by_id(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user.read"))
 ):
     """
     Get user profile by ID.
@@ -221,7 +221,7 @@ def update_user_profile(
     user_id: str,
     user_data: UserProfileUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_edit"))
+    current_user: User = Depends(require_permission("user.update"))
 ):
     """
     Update user profile.
@@ -271,7 +271,7 @@ def delete_user_profile(
     user_id: str,
     soft_delete: bool = Query(True, description="Perform soft delete"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_delete"))
+    current_user: User = Depends(require_permission("user.delete"))
 ):
     """
     Delete user profile.
@@ -341,7 +341,7 @@ def search_users(
     exclude_assigned: Optional[str] = Query(None, description="Exclude users already assigned to this location ID"),
     user_type: Optional[str] = Query(None, description="Filter by user type"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user.read"))
 ):
     """
     Search users by name, username, email, or employee ID.
@@ -402,7 +402,7 @@ def create_user_session(
     user_id: str,
     session_data: UserSessionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("session_create"))
+    current_user: User = Depends(require_permission("session.create"))
 ):
     """
     Create user session.
@@ -467,7 +467,7 @@ def get_user_sessions(
     user_id: str,
     active_only: bool = Query(True, description="Return only active sessions"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("session_view"))
+    current_user: User = Depends(require_permission("session.read"))
 ):
     """
     Get user sessions.
@@ -505,7 +505,7 @@ def get_user_sessions(
 def end_user_session(
     session_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("session_manage"))
+    current_user: User = Depends(require_permission("session.manage"))
 ):
     """
     End user session.
@@ -550,7 +550,7 @@ def end_user_session(
 @router.get("/statistics/overview", response_model=UserStatistics)
 def get_user_statistics(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user.read"))
 ):
     """
     Get user management statistics.
@@ -606,7 +606,7 @@ def get_user_statistics(
 def validate_username(
     username: str = Query(..., min_length=3, max_length=50),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user.create"))
 ):
     """
     Validate username availability.
@@ -639,7 +639,7 @@ def validate_username(
 def validate_email(
     email: str = Query(..., description="Email address to validate"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_create"))
+    current_user: User = Depends(require_permission("user.create"))
 ):
     """
     Validate email availability.
@@ -677,7 +677,7 @@ def assign_user_to_location(
     user_id: str,
     assignment_data: UserLocationAssignmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("staff_assign"))
+    current_user: User = Depends(require_permission("staff.assign"))
 ):
     """
     Assign user to location from user management screen.
@@ -740,7 +740,7 @@ def get_user_assignments(
     user_id: str,
     active_only: bool = Query(True, description="Return only active assignments"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("user_view"))
+    current_user: User = Depends(require_permission("user.read"))
 ):
     """
     Get user location assignments.
