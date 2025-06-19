@@ -387,7 +387,7 @@ def require_geographic_access(province_code: str = None, region_id: str = None,
     return decorator
 
 # FastAPI Dependencies for easier use
-def PermissionRequired(permission: str, context_fields: List[str] = None):
+class PermissionRequired:
     """
     FastAPI dependency for permission checking
     
@@ -396,7 +396,12 @@ def PermissionRequired(permission: str, context_fields: List[str] = None):
             current_user: User = Depends(PermissionRequired("license.create"))
         ):
     """
-    async def check_permission_dependency(
+    def __init__(self, permission: str, context_fields: List[str] = None):
+        self.permission = permission
+        self.context_fields = context_fields
+    
+    async def __call__(
+        self,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
     ) -> User:
@@ -405,11 +410,11 @@ def PermissionRequired(permission: str, context_fields: List[str] = None):
             engine = get_permission_engine(db)
             has_permission = await engine.check_permission(
                 str(current_user.id), 
-                permission
+                self.permission
             )
             
             if not has_permission:
-                raise PermissionDeniedError(permission)
+                raise PermissionDeniedError(self.permission)
             
             return current_user
             
@@ -417,15 +422,13 @@ def PermissionRequired(permission: str, context_fields: List[str] = None):
             raise
         except Exception as e:
             logger.error("Permission dependency check failed", 
-                       permission=permission, error=str(e))
+                       permission=self.permission, error=str(e))
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Permission check failed"
             )
-    
-    return check_permission_dependency
 
-def SystemTypeRequired(*system_types: SystemType):
+class SystemTypeRequired:
     """
     FastAPI dependency for system type checking
     
@@ -434,7 +437,11 @@ def SystemTypeRequired(*system_types: SystemType):
             current_user: User = Depends(SystemTypeRequired(SystemType.SUPER_ADMIN))
         ):
     """
-    async def check_system_type_dependency(
+    def __init__(self, *system_types: SystemType):
+        self.system_types = system_types
+    
+    async def __call__(
+        self,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
     ) -> User:
@@ -443,10 +450,10 @@ def SystemTypeRequired(*system_types: SystemType):
             engine = get_permission_engine(db)
             compiled = await engine.compile_user_permissions(str(current_user.id))
             
-            if compiled.system_type not in system_types:
+            if compiled.system_type not in self.system_types:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"System type required: {[st.value for st in system_types]}"
+                    detail=f"System type required: {[st.value for st in self.system_types]}"
                 )
             
             return current_user
@@ -459,8 +466,6 @@ def SystemTypeRequired(*system_types: SystemType):
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="System type check failed"
             )
-    
-    return check_system_type_dependency
 
 # Backward compatibility with existing code
 def require_admin_permission(permission: str) -> Callable:
