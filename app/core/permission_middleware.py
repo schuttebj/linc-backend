@@ -27,110 +27,7 @@ class PermissionDeniedError(HTTPException):
             detail=detail
         )
 
-def require_permission(permission: str, context_fields: List[str] = None) -> Callable:
-    """
-    Enhanced permission decorator with context support
-    
-    Args:
-        permission: Permission name to check
-        context_fields: List of field names to extract from request for geographic context
-        
-    Usage:
-        @require_permission("license.create")
-        @require_permission("license.approve", context_fields=["province_code", "region_id"])
-    """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Get current user and database session
-            current_user = None
-            db_session = None
-            request = None
-            
-            # Extract dependencies from kwargs
-            for key, value in kwargs.items():
-                if isinstance(value, User):
-                    current_user = value
-                elif isinstance(value, Session):
-                    db_session = value
-                elif isinstance(value, Request):
-                    request = value
-            
-            if not current_user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
-                )
-            
-            if not db_session:
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Database session not available"
-                )
-            
-            # Build context from request if context_fields specified
-            context = {}
-            if context_fields and request:
-                # Extract from path parameters
-                if hasattr(request, 'path_params'):
-                    for field in context_fields:
-                        if field in request.path_params:
-                            context[field] = request.path_params[field]
-                
-                # Extract from query parameters
-                if hasattr(request, 'query_params'):
-                    for field in context_fields:
-                        if field in request.query_params:
-                            context[field] = request.query_params[field]
-                
-                # Extract from request body (if available)
-                if hasattr(request, '_body') and request._body:
-                    try:
-                        import json
-                        body = json.loads(request._body)
-                        for field in context_fields:
-                            if field in body:
-                                context[field] = body[field]
-                    except:
-                        pass  # Ignore JSON parse errors
-            
-            # Check permission
-            try:
-                engine = get_permission_engine(db_session)
-                has_permission = await engine.check_permission(
-                    str(current_user.id), 
-                    permission, 
-                    context if context else None
-                )
-                
-                if not has_permission:
-                    logger.warning("Permission denied", 
-                                 user_id=str(current_user.id),
-                                 username=current_user.username,
-                                 permission=permission,
-                                 context=context)
-                    raise PermissionDeniedError(permission, context)
-                
-                logger.debug("Permission granted", 
-                           user_id=str(current_user.id),
-                           permission=permission)
-                
-                return await func(*args, **kwargs)
-                
-            except PermissionDeniedError:
-                raise
-            except Exception as e:
-                logger.error("Permission check failed", 
-                           user_id=str(current_user.id),
-                           permission=permission,
-                           error=str(e))
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Permission check failed"
-                )
-        
-        return wrapper
-    return decorator
+
 
 def require_any_permission(*permissions: str, context_fields: List[str] = None) -> Callable:
     """
@@ -387,6 +284,17 @@ def require_geographic_access(province_code: str = None, region_id: str = None,
     return decorator
 
 # FastAPI Dependencies for easier use
+def require_permission(permission: str, context_fields: List[str] = None):
+    """
+    Create a PermissionRequired dependency for use with Depends()
+    
+    Usage:
+        async def my_endpoint(
+            current_user: User = Depends(require_permission("license.create"))
+        ):
+    """
+    return PermissionRequired(permission, context_fields)
+
 class PermissionRequired:
     """
     FastAPI dependency for permission checking
@@ -468,7 +376,7 @@ class SystemTypeRequired:
             )
 
 # Backward compatibility with existing code
-def require_admin_permission(permission: str) -> Callable:
+def require_admin_permission(permission: str):
     """
     Legacy compatibility function
     Maps to the new require_permission function
