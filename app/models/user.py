@@ -267,6 +267,13 @@ class User(BaseModel):
         # For now, basic logic - should use permission engine
         return self.user_group_code == target_group_code
     
+    def can_manage_region(self, target_region_code: str) -> bool:
+        """Check if user can manage a specific region"""
+        # This should use the new permission system
+        from app.core.permission_engine import PermissionEngine
+        # For now, basic logic - should use permission engine
+        return self.user_group_code == target_region_code
+    
     def get_primary_location_assignment(self):
         """Get primary location assignment - LEGACY"""
         # Maintained for backward compatibility during migration

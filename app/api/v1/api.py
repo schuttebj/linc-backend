@@ -4,7 +4,7 @@ Single-country deployment with simplified routing
 """
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import persons, countries, health, licenses, auth, users, files, monitoring, admin, lookups, migration, user_groups, locations, user_management, permissions
+from app.api.v1.endpoints import persons, countries, health, licenses, auth, users, files, monitoring, admin, lookups, migration, regions, locations, user_management, permissions
 
 api_router = APIRouter()
 
@@ -36,11 +36,11 @@ api_router.include_router(
     tags=["permissions"]
 )
 
-# Location management endpoints
+# Region management endpoints
 api_router.include_router(
-    user_groups.router,
-    prefix="/user-groups",
-    tags=["user-groups"]
+    regions.router,
+    prefix="/regions",
+    tags=["regions"]
 )
 
 api_router.include_router(
