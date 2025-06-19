@@ -9,10 +9,10 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
-from app.db.base_class import Base
+from app.models.base import BaseModel
 
 
-class UserType(Base):
+class UserType(BaseModel):
     """
     User Type Model - Defines the 4-tier permission hierarchy
     
@@ -102,7 +102,7 @@ class UserType(Base):
         return current_tier < target_tier
 
 
-class UserRegionAssignment(Base):
+class UserRegionAssignment(BaseModel):
     """
     User Region Assignment - Links users to specific regions they can access
     """
@@ -128,7 +128,7 @@ class UserRegionAssignment(Base):
         return f"<UserRegionAssignment(user_id='{self.user_id}', region_id='{self.region_id}', type='{self.assignment_type}')>"
 
 
-class UserOfficeAssignment(Base):
+class UserOfficeAssignment(BaseModel):
     """
     User Office Assignment - Links users to specific offices they can access
     """

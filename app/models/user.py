@@ -22,8 +22,8 @@ class UserStatus(PythonEnum):
     LOCKED = "LOCKED"
     PENDING_ACTIVATION = "PENDING_ACTIVATION"
 
-class UserType(PythonEnum):
-    """User type codes from documentation"""
+class UserTypeCode(PythonEnum):
+    """User type codes from documentation - legacy enum"""
     STANDARD = "1"                      # Standard user
     SYSTEM = "2"                        # System user
     EXAMINER = "3"                      # Examiner
@@ -166,10 +166,10 @@ class User(BaseModel):
     password_reset_token = Column(String(255), nullable=True, comment="Password reset token")
     password_reset_expires = Column(DateTime, nullable=True, comment="Password reset expiration")
     
-    # NEW PERMISSION SYSTEM RELATIONSHIPS
-    user_type = relationship("UserType", back_populates="users", foreign_keys=[user_type_id])
-    region_assignments = relationship("UserRegionAssignment", cascade="all, delete-orphan")
-    office_assignments = relationship("UserOfficeAssignment", cascade="all, delete-orphan")
+    # NEW PERMISSION SYSTEM RELATIONSHIPS - TEMPORARILY COMMENTED TO FIX DEPLOYMENT
+    # user_type = relationship("UserType", back_populates="users", foreign_keys=[user_type_id])
+    # region_assignments = relationship("UserRegionAssignment", cascade="all, delete-orphan")
+    # office_assignments = relationship("UserOfficeAssignment", cascade="all, delete-orphan")
     
     # Existing relationships (maintained)
     audit_logs = relationship("UserAuditLog", back_populates="user")
