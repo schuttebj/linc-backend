@@ -10,7 +10,7 @@ import structlog
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.permissions import require_permission, require_admin_permission
+from app.core.permission_middleware import require_permission
 from app.services.user_service import UserService
 from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse, UserListResponse, UserListFilter,
@@ -23,14 +23,14 @@ from app.models.user import User
 logger = structlog.get_logger()
 router = APIRouter()
 
-# Note: require_admin_permission is now imported from app.core.permissions
+# Note: Using require_permission from new permission middleware
 
 # User Management Endpoints
 @router.post("/", response_model=UserResponse)
 async def create_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.create"))
+    current_user: User = Depends(require_permission("admin.user.create"))
 ):
     """
     Create new user account
@@ -69,7 +69,7 @@ async def list_users(
     country_code: Optional[str] = Query(None, description="Filter by country"),
     search: Optional[str] = Query(None, description="Search users"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.read"))
+    current_user: User = Depends(require_permission("admin.user.read"))
 ):
     """
     List users with filtering and pagination
@@ -114,7 +114,7 @@ async def list_users(
 async def get_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.read"))
+    current_user: User = Depends(require_permission("admin.user.read"))
 ):
     """
     Get user by ID
@@ -143,7 +143,7 @@ async def update_user(
     user_id: str,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.update"))
+    current_user: User = Depends(require_permission("admin.user.update"))
 ):
     """
     Update user account
@@ -175,7 +175,7 @@ async def update_user(
 async def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.delete"))
+    current_user: User = Depends(require_permission("admin.user.delete"))
 ):
     """
     Delete user account (soft delete - deactivate)
@@ -218,7 +218,7 @@ async def delete_user(
 async def create_role(
     role_data: RoleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.role.manage"))
+    current_user: User = Depends(require_permission("admin.role.manage"))
 ):
     """
     Create new role
@@ -247,7 +247,7 @@ async def create_role(
 @router.get("/roles/", response_model=List[RoleResponse])
 async def list_roles(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.role.manage"))
+    current_user: User = Depends(require_permission("admin.role.manage"))
 ):
     """
     List all roles
@@ -276,7 +276,7 @@ async def list_roles(
 async def create_permission(
     permission_data: PermissionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.role.manage"))
+    current_user: User = Depends(require_permission("admin.role.manage"))
 ):
     """
     Create new permission
@@ -308,7 +308,7 @@ async def create_permission(
 @router.get("/permissions/", response_model=List[PermissionResponse])
 async def list_permissions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.role.manage"))
+    current_user: User = Depends(require_permission("admin.role.manage"))
 ):
     """
     List all permissions
@@ -338,7 +338,7 @@ async def get_user_audit_logs(
     user_id: str,
     limit: int = Query(50, ge=1, le=500, description="Number of logs to retrieve"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.audit.read"))
+    current_user: User = Depends(require_permission("admin.audit.read"))
 ):
     """
     Get user audit logs
@@ -369,7 +369,7 @@ async def get_user_audit_logs(
 async def admin_reset_password(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.update"))
+    current_user: User = Depends(require_permission("admin.user.update"))
 ):
     """
     Admin reset user password
@@ -429,7 +429,7 @@ async def admin_reset_password(
 async def unlock_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_permission("admin.user.update"))
+    current_user: User = Depends(require_permission("admin.user.update"))
 ):
     """
     Unlock user account
