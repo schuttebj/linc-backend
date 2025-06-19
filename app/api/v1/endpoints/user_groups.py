@@ -97,16 +97,13 @@ def read_user_groups(
 def get_user_group_statistics(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group.read"))
 ):
     """
     Get user group statistics.
+    
+    Requires user_group.read permission.
     """
-    if not current_user.has_permission("user_group.read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user group statistics"
-        )
     
     stats = user_group.get_statistics(db=db)
     return stats
@@ -212,16 +209,13 @@ def get_user_groups_by_province(
     *,
     db: Session = Depends(get_db),
     province_code: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group.read"))
 ):
     """
     Get all user groups in a specific province.
+    
+    Requires user_group.read permission.
     """
-    if not current_user.has_permission("user_group.read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user groups"
-        )
     
     # Check if user can access this province
     if not current_user.can_access_province(province_code):
@@ -237,16 +231,13 @@ def get_user_groups_by_province(
 def get_dltc_user_groups(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group.read"))
 ):
     """
     Get all DLTC user groups.
+    
+    Requires user_group.read permission.
     """
-    if not current_user.has_permission("user_group.read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user groups"
-        )
     
     user_groups = user_group.get_dltc_groups(db=db)
     
@@ -263,16 +254,13 @@ def get_dltc_user_groups(
 def get_help_desk_user_groups(
     *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group.read"))
 ):
     """
     Get all help desk user groups.
+    
+    Requires user_group.read permission.
     """
-    if not current_user.has_permission("user_group.read"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to read user groups"
-        )
     
     user_groups = user_group.get_help_desk_groups(db=db)
     
@@ -290,16 +278,13 @@ def validate_user_group_code(
     *,
     db: Session = Depends(get_db),
     user_group_code: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("user_group.create"))
 ):
     """
     Check if user group code is available.
+    
+    Requires user_group.create permission.
     """
-    if not current_user.has_permission("user_group.create"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions to validate user group codes"
-        )
     
     exists = user_group.check_code_exists(db=db, user_group_code=user_group_code)
     
