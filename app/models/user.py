@@ -167,9 +167,9 @@ class User(BaseModel):
     password_reset_expires = Column(DateTime, nullable=True, comment="Password reset expiration")
     
     # NEW PERMISSION SYSTEM RELATIONSHIPS - TEMPORARILY COMMENTED TO FIX DEPLOYMENT
-    # user_type = relationship("UserType", back_populates="users", foreign_keys=[user_type_id])
-    # region_assignments = relationship("UserRegionAssignment", cascade="all, delete-orphan")
-    # office_assignments = relationship("UserOfficeAssignment", cascade="all, delete-orphan")
+    user_type = relationship("UserType", back_populates="users", foreign_keys=[user_type_id])
+    region_assignments = relationship("UserRegionAssignment", back_populates="user", cascade="all, delete-orphan")
+    office_assignments = relationship("UserOfficeAssignment", back_populates="user", cascade="all, delete-orphan")
     
     # Existing relationships (maintained)
     audit_logs = relationship("UserAuditLog", back_populates="user")
