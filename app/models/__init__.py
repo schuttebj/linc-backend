@@ -11,8 +11,9 @@ from .office import Office, OfficeType, InfrastructureType, OperationalStatus, O
 from .location_resource import LocationResource, ResourceType, ResourceStatus
 from .user_location_assignment import UserLocationAssignment, AssignmentType, AssignmentStatus
 
-# NEW PERMISSION SYSTEM IMPORTS - TEMPORARILY COMMENTED TO BREAK CIRCULAR IMPORT
-# from .user_type import UserType, UserRegionAssignment, UserOfficeAssignment
+# NEW PERMISSION SYSTEM IMPORTS
+from .user_type import UserType, UserRegionAssignment, UserOfficeAssignment
+from .permission_system import RegionRole, OfficeRole, PermissionAuditLog
 
 # LEGACY MODELS REMOVED - Migration complete
 
@@ -46,7 +47,7 @@ __all__ = [
     "UserAuditLog",
     "UserSession",
     "UserStatus",
-    # "UserType",  # Temporarily commented
+    "UserType",
     
     # Organization models
     "Region",
@@ -72,7 +73,10 @@ __all__ = [
     "Gender",
     "ValidationStatus",
     
-    # Permission system - Temporarily commented
-    # "UserRegionAssignment",
-    # "UserOfficeAssignment",
+    # Permission system
+    "UserRegionAssignment",
+    "UserOfficeAssignment",
+    "RegionRole",
+    "OfficeRole", 
+    "PermissionAuditLog",
 ] 
