@@ -166,11 +166,14 @@ def create_default_region():
 def create_default_office():
     """Create a default office for testing"""
     return {
-        "office_code": "TEST001",
+        "office_code": "A",  # Single letter A-Z as defined in model
         "office_name": "Test Office",
-        "office_type": "DLTC",
-        "infrastructure_type": "FIXED",
+        "office_type": "primary",  # Using valid OfficeType enum value
+        "infrastructure_type": "10",  # "10" = FIXED_DLTC as per enum
+        "address_line_1": "123 Test Street",  # Required field
+        "city": "Cape Town",  # Required field
         "province_code": "WC",  # Western Cape - 2 char province code
+        "country_code": "ZA",  # Required field with default
         "is_active": True
     }
 
@@ -265,7 +268,10 @@ def main():
                         office_name=office_data["office_name"],
                         office_type=office_data["office_type"],
                         infrastructure_type=office_data["infrastructure_type"],
+                        address_line_1=office_data["address_line_1"],
+                        city=office_data["city"],
                         province_code=office_data["province_code"],
+                        country_code=office_data["country_code"],
                         region_id=region.id,
                         is_active=office_data["is_active"],
                         created_at=datetime.utcnow(),
