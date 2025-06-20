@@ -158,7 +158,7 @@ def create_default_region():
         "user_group_code": "TEST",
         "user_group_name": "Test Region",
         "user_group_type": "10",  # DLTC
-        "province_code": "ZA",
+        "province_code": "WC",  # Western Cape - 2 char province code
         "is_active": True
     }
 
@@ -170,7 +170,7 @@ def create_default_office():
         "office_name": "Test Office",
         "office_type": "DLTC",
         "infrastructure_type": "FIXED",
-        "province_code": "ZA",
+        "province_code": "WC",  # Western Cape - 2 char province code
         "is_active": True
     }
 
@@ -191,17 +191,17 @@ def main():
             for type_data in user_type_data:
                 try:
                     existing_type = db.query(UserType).filter(
-                        UserType.type_code == type_data["type_code"]
+                        UserType.id == type_data["type_code"]
                     ).first()
                     
                     if not existing_type:
                         user_type = UserType(
-                            id=str(uuid.uuid4()),
-                            type_code=type_data["type_code"],
+                            id=type_data["type_code"],  # Use type_code as id
                             display_name=type_data["display_name"],
                             description=type_data["description"],
-                            permissions=type_data["permissions"],  # JSON array
-                            has_national_access=type_data["has_national_access"],
+                            tier_level="1" if type_data["type_code"] == "super_admin" else "2",
+                            default_permissions=type_data["permissions"],  # JSON array
+                            can_access_all_provinces=type_data["has_national_access"],
                             is_system_type=type_data["is_system_type"],
                             is_active=True,
                             created_at=datetime.utcnow(),
@@ -209,10 +209,10 @@ def main():
                         )
                         db.add(user_type)
                         db.flush()
-                        user_types_created[user_type.type_code] = user_type
+                        user_types_created[user_type.id] = user_type
                         print(f"  ✅ Created user type: {user_type.display_name}")
                     else:
-                        user_types_created[existing_type.type_code] = existing_type
+                        user_types_created[existing_type.id] = existing_type
                         print(f"  ⏭️  User type exists: {existing_type.display_name}")
                         
                 except Exception as e:
@@ -299,7 +299,7 @@ def main():
                         department="IT Administration",
                         country_code="ZA",
                         user_type_id=user_types_created["super_admin"].id if "super_admin" in user_types_created else None,
-                        assigned_province="ZA",
+                        assigned_province="WC",  # Western Cape - 2 char province code
                         is_active=True,
                         is_verified=True,
                         is_superuser=True,
@@ -374,7 +374,7 @@ def main():
                             department=user_info["department"],
                             country_code="ZA",
                             user_type_id=user_types_created[user_info["user_type"]].id if user_info["user_type"] in user_types_created else None,
-                            assigned_province="ZA",
+                            assigned_province="WC",  # Western Cape - 2 char province code
                             is_active=True,
                             is_verified=True,
                             status=UserStatus.ACTIVE.value,
