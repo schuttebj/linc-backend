@@ -3,7 +3,7 @@ User Type Models for New Permission System
 Implements 4-tier user hierarchy: super_admin -> national_help_desk -> provincial_help_desk -> standard_user
 """
 
-from sqlalchemy import Column, String, Text, Boolean, DateTime, JSON
+from sqlalchemy import Column, String, Text, Boolean, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -112,8 +112,8 @@ class UserRegionAssignment(BaseModel):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Foreign keys
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    region_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
+    region_id = Column(UUID(as_uuid=True), ForeignKey('regions.id'), nullable=False, index=True)
     
     # Assignment details
     assignment_type = Column(String(20), nullable=False, default="read_write")  # read_only, read_write, admin
@@ -123,6 +123,10 @@ class UserRegionAssignment(BaseModel):
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)  # Optional expiry
     is_active = Column(Boolean, default=True)
+    
+    # Relationships (commented out to fix initialization)
+    # user = relationship("User", back_populates="region_assignments")
+    # region = relationship("Region", back_populates="user_assignments")
     
     def __repr__(self):
         return f"<UserRegionAssignment(user_id='{self.user_id}', region_id='{self.region_id}', type='{self.assignment_type}')>"
@@ -138,8 +142,8 @@ class UserOfficeAssignment(BaseModel):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Foreign keys
-    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
-    office_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False, index=True)
+    office_id = Column(UUID(as_uuid=True), ForeignKey('offices.id'), nullable=False, index=True)
     
     # Assignment details
     assignment_type = Column(String(20), nullable=False, default="read_write")  # read_only, read_write, admin
@@ -149,6 +153,10 @@ class UserOfficeAssignment(BaseModel):
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=True)  # Optional expiry
     is_active = Column(Boolean, default=True)
+    
+    # Relationships (commented out to fix initialization)
+    # user = relationship("User", back_populates="office_assignments")
+    # office = relationship("Office", back_populates="user_assignments")
     
     def __repr__(self):
         return f"<UserOfficeAssignment(user_id='{self.user_id}', office_id='{self.office_id}', type='{self.assignment_type}')>" 
