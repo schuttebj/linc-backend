@@ -53,7 +53,10 @@ def create_default_user_types():
                 "test.schedule", "test.conduct", "test.results.update",
                 "admin.user.create", "admin.user.read", "admin.user.update", "admin.user.delete",
                 "admin.role.manage", "admin.system.config", "admin.database.reset", 
-                "admin.database.read", "admin.system.initialize",
+                "admin.database.read", "admin.system.initialize", "admin.audit.read",
+                "user.create", "user.read", "user.update", "user.delete",
+                "user.region.assign", "user.office.assign",
+                "session.create", "session.read", "session.manage",
                 "report.license.read", "report.financial.read", "report.operational.read"
             ],
             "has_national_access": True,
@@ -68,6 +71,8 @@ def create_default_user_types():
                 "person.create", "person.read", "person.update",
                 "finance.payment.read", "finance.refund.process",
                 "admin.user.read", "admin.user.update",
+                "user.read", "user.update", "user.region.assign", "user.office.assign",
+                "session.read", "session.manage",
                 "report.license.read", "report.operational.read"
             ],
             "has_national_access": True,
@@ -81,6 +86,8 @@ def create_default_user_types():
                 "license.application.read", "license.application.update",
                 "person.create", "person.read", "person.update",
                 "finance.payment.read",
+                "user.read", "user.update", "user.region.assign", "user.office.assign",
+                "session.read",
                 "report.license.read", "report.operational.read"
             ],
             "has_national_access": False,
@@ -94,6 +101,8 @@ def create_default_user_types():
                 "license.application.create", "license.application.read", "license.application.update",
                 "license.application.approve", "license.issue", "license.renew", "license.suspend",
                 "person.create", "person.read", "person.update",
+                "user.read", "user.region.assign", "user.office.assign",
+                "session.read",
                 "report.license.read", "report.operational.read"
             ],
             "has_national_access": False,

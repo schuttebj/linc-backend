@@ -43,7 +43,7 @@ def create_user_profile(
     """
     Create new user profile.
     
-    Requires user_create permission.
+    Requires user.create permission.
     
     Implements business rules:
     - V06001: User Group must be active and valid
@@ -669,26 +669,27 @@ def validate_email(
         )
 
 # ========================================
-# USER LOCATION ASSIGNMENT ENDPOINTS
+# USER REGION AND OFFICE ASSIGNMENT ENDPOINTS
 # ========================================
 
-@router.post("/{user_id}/assignments", response_model=UserLocationAssignmentResponse, status_code=status.HTTP_201_CREATED)
-def assign_user_to_location(
+@router.post("/{user_id}/region-assignments", status_code=status.HTTP_201_CREATED)
+def assign_user_to_region(
     user_id: str,
-    assignment_data: UserLocationAssignmentCreate,
+    region_id: str = Query(..., description="Region ID to assign user to"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("staff.assign"))
+    current_user: User = Depends(require_permission("user.region.assign"))
 ):
     """
-    Assign user to location from user management screen.
+    Assign user to region for geographic access control.
     
-    Requires staff_assign permission.
+    Requires user.region.assign permission.
+    Based on User_Groups_Locations_New.md - users need region assignments for access control.
     """
     try:
         logger.info(
-            "Assigning user to location",
+            "Assigning user to region",
             user_id=user_id,
-            location_id=assignment_data.location_id,
+            region_id=region_id,
             assigned_by=current_user.username
         )
         
@@ -700,42 +701,151 @@ def assign_user_to_location(
                 detail="User not found"
             )
         
-        # Override user_id in assignment data
-        assignment_data.user_id = user_id
+        # Verify region exists
+        from app.models.region import Region
+        region = db.query(Region).filter(Region.id == region_id).first()
+        if not region:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Region not found"
+            )
         
-        # Create assignment using location service
-        from app.crud import location as location_crud
-        assignment = location_crud.create_user_location_assignment(
-            db=db,
-            assignment_data=assignment_data,
-            assigned_by=current_user.username
+        # Create region assignment
+        from app.models.user_assignments import UserRegionAssignment
+        from datetime import datetime
+        import uuid
+        
+        assignment = UserRegionAssignment(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            region_id=region_id,
+            assigned_at=datetime.utcnow(),
+            assigned_by=current_user.username,
+            is_active=True
         )
+        
+        db.add(assignment)
+        db.commit()
         
         logger.info(
-            "User assigned to location successfully",
+            "User assigned to region successfully",
             user_id=user_id,
-            location_id=assignment_data.location_id,
-            assignment_id=str(assignment.id)
+            region_id=region_id,
+            assignment_id=assignment.id
         )
         
-        return UserLocationAssignmentResponse.from_orm(assignment)
+        return {
+            "status": "success",
+            "message": "User assigned to region successfully",
+            "assignment_id": assignment.id,
+            "user_id": user_id,
+            "region_id": region_id,
+            "region_name": region.user_group_name
+        }
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(
-            "Error assigning user to location",
+            "Error assigning user to region",
             user_id=user_id,
-            location_id=assignment_data.location_id,
+            region_id=region_id,
             error=str(e),
             exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to assign user to location"
+            detail="Failed to assign user to region"
         )
 
-@router.get("/{user_id}/assignments", response_model=List[UserLocationAssignmentResponse])
+@router.post("/{user_id}/office-assignments", status_code=status.HTTP_201_CREATED)
+def assign_user_to_office(
+    user_id: str,
+    office_id: str = Query(..., description="Office ID to assign user to"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("user.office.assign"))
+):
+    """
+    Assign user to office for operational work location.
+    
+    Requires user.office.assign permission.
+    Based on User_Groups_Locations_New.md - users work at specific offices within regions.
+    """
+    try:
+        logger.info(
+            "Assigning user to office",
+            user_id=user_id,
+            office_id=office_id,
+            assigned_by=current_user.username
+        )
+        
+        # Verify user exists
+        user = user_management.get_user(db=db, user_id=user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Verify office exists
+        from app.models.office import Office
+        office = db.query(Office).filter(Office.id == office_id).first()
+        if not office:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Office not found"
+            )
+        
+        # Create office assignment
+        from app.models.user_assignments import UserOfficeAssignment
+        from datetime import datetime
+        import uuid
+        
+        assignment = UserOfficeAssignment(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            office_id=office_id,
+            assigned_at=datetime.utcnow(),
+            assigned_by=current_user.username,
+            is_active=True
+        )
+        
+        db.add(assignment)
+        db.commit()
+        
+        logger.info(
+            "User assigned to office successfully",
+            user_id=user_id,
+            office_id=office_id,
+            assignment_id=assignment.id
+        )
+        
+        return {
+            "status": "success",
+            "message": "User assigned to office successfully",
+            "assignment_id": assignment.id,
+            "user_id": user_id,
+            "office_id": office_id,
+            "office_name": office.office_name,
+            "office_code": office.office_code
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error assigning user to office",
+            user_id=user_id,
+            office_id=office_id,
+            error=str(e),
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to assign user to office"
+        )
+
+@router.get("/{user_id}/assignments")
 def get_user_assignments(
     user_id: str,
     active_only: bool = Query(True, description="Return only active assignments"),
@@ -743,9 +853,10 @@ def get_user_assignments(
     current_user: User = Depends(require_permission("user.read"))
 ):
     """
-    Get user location assignments.
+    Get user region and office assignments.
     
-    Requires user_view permission.
+    Requires user.read permission.
+    Returns both region and office assignments for the user.
     """
     try:
         logger.info(
@@ -763,15 +874,54 @@ def get_user_assignments(
                 detail="User not found"
             )
         
-        # Get assignments
-        from app.crud import location as location_crud
-        assignments = location_crud.get_user_location_assignments(
-            db=db,
-            user_id=user_id,
-            active_only=active_only
-        )
+        # Get region assignments
+        from app.models.user_assignments import UserRegionAssignment, UserOfficeAssignment
+        from app.models.region import Region
+        from app.models.office import Office
         
-        return [UserLocationAssignmentResponse.from_orm(assignment) for assignment in assignments]
+        region_query = db.query(UserRegionAssignment).filter(
+            UserRegionAssignment.user_id == user_id
+        ).join(Region)
+        
+        office_query = db.query(UserOfficeAssignment).filter(
+            UserOfficeAssignment.user_id == user_id
+        ).join(Office)
+        
+        if active_only:
+            region_query = region_query.filter(UserRegionAssignment.is_active == True)
+            office_query = office_query.filter(UserOfficeAssignment.is_active == True)
+        
+        region_assignments = region_query.all()
+        office_assignments = office_query.all()
+        
+        # Format response
+        assignments = {
+            "user_id": user_id,
+            "region_assignments": [
+                {
+                    "assignment_id": str(assignment.id),
+                    "region_id": str(assignment.region_id),
+                    "region_name": assignment.region.user_group_name,
+                    "region_code": assignment.region.user_group_code,
+                    "assigned_at": assignment.assigned_at.isoformat(),
+                    "assigned_by": assignment.assigned_by,
+                    "is_active": assignment.is_active
+                } for assignment in region_assignments
+            ],
+            "office_assignments": [
+                {
+                    "assignment_id": str(assignment.id),
+                    "office_id": str(assignment.office_id),
+                    "office_name": assignment.office.office_name,
+                    "office_code": assignment.office.office_code,
+                    "assigned_at": assignment.assigned_at.isoformat(),
+                    "assigned_by": assignment.assigned_by,
+                    "is_active": assignment.is_active
+                } for assignment in office_assignments
+            ]
+        }
+        
+        return assignments
         
     except HTTPException:
         raise

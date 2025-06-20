@@ -1,6 +1,6 @@
 """
 User Management API Endpoints
-Administrative endpoints for managing users, roles, and permissions
+Administrative endpoints for managing users with new permission system
 """
 
 from typing import List, Optional
@@ -14,8 +14,6 @@ from app.core.permission_middleware import require_permission
 from app.services.user_service import UserService
 from app.schemas.user import (
     UserCreate, UserUpdate, UserResponse, UserListResponse, UserListFilter,
-    RoleCreate, RoleUpdate, RoleResponse,
-    PermissionCreate, PermissionUpdate, PermissionResponse,
     UserAuditLogResponse
 )
 from app.models.user import User
@@ -211,125 +209,6 @@ async def delete_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete user"
-        )
-
-# Role Management Endpoints
-@router.post("/roles/", response_model=RoleResponse)
-async def create_role(
-    role_data: RoleCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("admin.role.manage"))
-):
-    """
-    Create new role
-    
-    Requires admin.role.manage permission
-    """
-    try:
-        logger.info("Creating new role", 
-                   role_name=role_data.name, 
-                   created_by=current_user.username)
-        
-        user_service = UserService(db)
-        role = await user_service.create_role(role_data, created_by=current_user.username)
-        
-        return RoleResponse.from_orm(role)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error creating role", role_name=role_data.name, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create role"
-        )
-
-@router.get("/roles/", response_model=List[RoleResponse])
-async def list_roles(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("admin.role.manage"))
-):
-    """
-    List all roles
-    
-    Requires admin.role.manage permission
-    """
-    try:
-        logger.info("Listing roles", requested_by=current_user.username)
-        
-        user_service = UserService(db)
-        roles = await user_service.get_roles()
-        
-        return [RoleResponse.from_orm(role) for role in roles]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error listing roles", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve roles"
-        )
-
-# Permission Management Endpoints
-@router.post("/permissions/", response_model=PermissionResponse)
-async def create_permission(
-    permission_data: PermissionCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("admin.role.manage"))
-):
-    """
-    Create new permission
-    
-    Requires admin.role.manage permission
-    """
-    try:
-        logger.info("Creating new permission", 
-                   permission_name=permission_data.name, 
-                   created_by=current_user.username)
-        
-        user_service = UserService(db)
-        permission = await user_service.create_permission(
-            permission_data, created_by=current_user.username
-        )
-        
-        return PermissionResponse.from_orm(permission)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error creating permission", 
-                    permission_name=permission_data.name, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create permission"
-        )
-
-@router.get("/permissions/", response_model=List[PermissionResponse])
-async def list_permissions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("admin.role.manage"))
-):
-    """
-    List all permissions
-    
-    Requires admin.role.manage permission
-    """
-    try:
-        logger.info("Listing permissions", requested_by=current_user.username)
-        
-        user_service = UserService(db)
-        permissions = await user_service.get_permissions()
-        
-        return [PermissionResponse.from_orm(permission) for permission in permissions]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Error listing permissions", error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve permissions"
         )
 
 # User Activity and Audit Endpoints
