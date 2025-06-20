@@ -187,6 +187,188 @@ async def database_health_check():
 
 # Database endpoints are now handled by the admin_database router
 
+# Development admin endpoints (no auth required for database setup)
+@app.post("/admin/init-database")
+async def init_database_dev():
+    """Initialize database tables - DEVELOPMENT ONLY"""
+    try:
+        from app.core.database import engine, Base
+        
+        # Create all tables
+        Base.metadata.create_all(bind=engine)
+        
+        return {
+            "status": "success",
+            "message": "Database tables created successfully",
+            "warning": "Development endpoint - no authentication required",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/admin/reset-database")
+async def reset_database_dev():
+    """Drop and recreate all database tables - DEVELOPMENT ONLY - DANGEROUS!"""
+    try:
+        from app.core.database import engine, Base
+        
+        # Drop all existing tables
+        Base.metadata.drop_all(bind=engine)
+        
+        # Recreate all tables with current schema
+        Base.metadata.create_all(bind=engine)
+        
+        return {
+            "status": "success",
+            "message": "Database tables dropped and recreated successfully",
+            "warning": "All existing data was destroyed - Development endpoint",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/admin/init-users")
+async def init_users_dev():
+    """Create default users - DEVELOPMENT ONLY"""
+    try:
+        import subprocess
+        import sys
+        import os
+        
+        # Get the path to the create_new_user_system.py script
+        script_path = os.path.join(os.path.dirname(__file__), "..", "create_new_user_system.py")
+        script_path = os.path.abspath(script_path)
+        
+        # Run the user system initialization script
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(script_path)
+        )
+        
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "message": "User system initialized successfully",
+                "script_output": result.stdout,
+                "warning": "Development endpoint - no authentication required",
+                "default_admin": {
+                    "username": "admin",
+                    "password": "Admin123!",
+                    "note": "Password must be changed on first login"
+                },
+                "timestamp": time.time()
+            }
+        else:
+            return {
+                "status": "error",
+                "error": result.stderr,
+                "script_output": result.stdout,
+                "timestamp": time.time()
+            }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
+@app.post("/admin/add-missing-permissions")
+async def add_missing_permissions_dev():
+    """Add missing permissions to existing user types - DEVELOPMENT ONLY"""
+    try:
+        from app.core.database import get_db_context
+        from app.models.user_type import UserType
+        from datetime import datetime
+        
+        # Define new permissions that might be missing
+        new_permissions = [
+            "admin.database.init",
+            "admin.database.reset", 
+            "admin.database.read",
+            "admin.system.initialize",
+            "admin.system.config",
+            "region.create",
+            "region.read",
+            "region.update", 
+            "region.delete",
+            "office.create",
+            "office.read",
+            "office.update",
+            "office.delete"
+        ]
+        
+        with get_db_context() as db:
+            # Get all user types
+            user_types = db.query(UserType).all()
+            
+            updates_made = []
+            
+            for user_type in user_types:
+                current_permissions = user_type.default_permissions or []
+                permissions_added = []
+                
+                # Add missing permissions based on user type
+                if user_type.id == "super_admin":
+                    # Super admin gets all permissions
+                    for permission in new_permissions:
+                        if permission not in current_permissions:
+                            current_permissions.append(permission)
+                            permissions_added.append(permission)
+                
+                elif user_type.id in ["national_help_desk", "provincial_help_desk"]:
+                    # Help desk gets read permissions
+                    read_permissions = [p for p in new_permissions if ".read" in p]
+                    for permission in read_permissions:
+                        if permission not in current_permissions:
+                            current_permissions.append(permission)
+                            permissions_added.append(permission)
+                
+                elif user_type.id == "license_manager":
+                    # License managers get region and office management
+                    manager_permissions = [p for p in new_permissions if p.startswith(("region.", "office."))]
+                    for permission in manager_permissions:
+                        if permission not in current_permissions:
+                            current_permissions.append(permission)
+                            permissions_added.append(permission)
+                
+                # Update the user type if permissions were added
+                if permissions_added:
+                    user_type.default_permissions = current_permissions
+                    user_type.updated_at = datetime.utcnow()
+                    user_type.updated_by = "system"
+                    updates_made.append({
+                        "user_type": user_type.id,
+                        "permissions_added": permissions_added
+                    })
+            
+            db.commit()
+            
+            return {
+                "status": "success",
+                "message": f"Updated {len(updates_made)} user types with missing permissions",
+                "updates_made": updates_made,
+                "warning": "Development endpoint - no authentication required",
+                "timestamp": time.time()
+            }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
