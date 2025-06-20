@@ -7,14 +7,47 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 import structlog
+import subprocess
+import sys
+import os
 
-from app.core.database import get_db, DatabaseManager
+from app.core.database import get_db, engine, Base
 from app.core.permission_middleware import require_permission
 from app.models.user import User
-from app.models import *  # Import all models
 
 logger = structlog.get_logger()
 router = APIRouter()
+
+@router.post("/init-database", response_model=Dict[str, Any])
+def init_database(
+    current_user: User = Depends(require_permission("admin.database.reset"))
+):
+    """
+    Initialize Database - Create all tables from models
+    
+    Creates all database tables based on SQLAlchemy models.
+    Safe to run multiple times - will not drop existing data.
+    """
+    try:
+        logger.info(f"Database initialization initiated by user: {current_user.username}")
+        
+        # Create all tables from models
+        Base.metadata.create_all(bind=engine)
+        logger.info("All tables created successfully")
+        
+        return {
+            "status": "success",
+            "message": "Database tables created successfully",
+            "initiated_by": current_user.username,
+            "warning": "Tables created - use init-users to populate data"
+        }
+        
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database initialization failed: {str(e)}"
+        )
 
 @router.post("/reset-database", response_model=Dict[str, Any])
 def reset_database(
@@ -29,17 +62,18 @@ def reset_database(
     try:
         logger.info(f"Database reset initiated by user: {current_user.username}")
         
-        # Drop all tables
-        DatabaseManager.drop_all_tables()
+        # Drop all existing tables
+        Base.metadata.drop_all(bind=engine)
         logger.info("All tables dropped successfully")
         
         # Recreate all tables
-        DatabaseManager.create_all_tables()
+        Base.metadata.create_all(bind=engine)
         logger.info("All tables created successfully")
         
         return {
             "status": "success",
             "message": "Database reset completed successfully",
+            "warning": "All existing data was destroyed",
             "tables_dropped": True,
             "tables_created": True,
             "initiated_by": current_user.username
@@ -52,175 +86,153 @@ def reset_database(
             detail=f"Database reset failed: {str(e)}"
         )
 
-@router.post("/initialize-users", response_model=Dict[str, Any])
-def initialize_user_system(
-    db: Session = Depends(get_db),
+@router.post("/init-users", response_model=Dict[str, Any])
+def init_users(
     current_user: User = Depends(require_permission("admin.system.initialize"))
 ):
     """
-    Initialize User System - Create default roles, permissions, and users
+    Initialize User System - Create default user types, regions, offices, and users
     
-    This is safe to run multiple times - it will skip existing records.
+    Runs the create_new_user_system.py script to populate the database with
+    default data for the new permission system. Safe to run multiple times.
     """
     try:
         logger.info(f"User system initialization initiated by: {current_user.username}")
         
-        # Import the initialization logic
-        import sys
-        import os
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        # Get the path to the create_new_user_system.py script
+        script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "create_new_user_system.py")
         
-        from create_user_system import create_default_permissions, create_default_roles
-        from app.models.user import Permission, Role
-        from app.core.security import get_password_hash
-        from app.models.enums import UserStatus
-        import uuid
-        from datetime import datetime
+        # Run the user system initialization script
+        result = subprocess.run(
+            [sys.executable, script_path],
+            capture_output=True,
+            text=True,
+            cwd=os.path.dirname(script_path)
+        )
         
-        permissions_created = 0
-        roles_created = 0
-        users_created = 0
-        
-        # Create permissions
-        permission_data = create_default_permissions()
-        for perm_data in permission_data:
-            existing = db.query(Permission).filter(Permission.name == perm_data["name"]).first()
-            if not existing:
-                permission = Permission(
-                    id=str(uuid.uuid4()),
-                    name=perm_data["name"],
-                    display_name=perm_data["display_name"],
-                    description=perm_data["description"],
-                    category=perm_data["category"],
-                    is_active=True,
-                    created_at=datetime.utcnow(),
-                    created_by=current_user.username
-                )
-                db.add(permission)
-                permissions_created += 1
-        
-        db.commit()
-        
-        # Create roles
-        role_data = create_default_roles()
-        for role_info in role_data:
-            existing = db.query(Role).filter(Role.name == role_info["name"]).first()
-            if not existing:
-                role = Role(
-                    id=str(uuid.uuid4()),
-                    name=role_info["name"],
-                    display_name=role_info["display_name"],
-                    description=role_info["description"],
-                    level=role_info["level"],
-                    is_system_role=role_info["is_system_role"],
-                    is_active=True,
-                    created_at=datetime.utcnow(),
-                    created_by=current_user.username
-                )
-                db.add(role)
-                db.flush()
-                
-                # Add permissions to role
-                for perm_name in role_info["permissions"]:
-                    permission = db.query(Permission).filter(Permission.name == perm_name).first()
-                    if permission:
-                        role.permissions.append(permission)
-                
-                roles_created += 1
-        
-        db.commit()
-        
-        # Create admin user if doesn't exist
-        admin_exists = db.query(User).filter(User.username == "admin").first()
-        if not admin_exists:
-            admin_user = User(
-                id=str(uuid.uuid4()),
-                username="admin",
-                email="admin@linc.gov.za",
-                first_name="System",
-                last_name="Administrator",
-                password_hash=get_password_hash("Admin123!"),
-                employee_id="ADMIN001",
-                department="IT Administration",
-                country_code="ZA",
-                is_active=True,
-                is_verified=True,
-                is_superuser=True,
-                status=UserStatus.ACTIVE.value,
-                require_password_change=True,
-                created_at=datetime.utcnow(),
-                created_by=current_user.username
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "message": "User system initialized successfully",
+                "script_output": result.stdout,
+                "initiated_by": current_user.username,
+                "default_admin": {
+                    "username": "admin",
+                    "password": "Admin123!",
+                    "note": "Password must be changed on first login"
+                }
+            }
+        else:
+            logger.error(f"User system initialization failed: {result.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"User system initialization failed: {result.stderr}"
             )
-            db.add(admin_user)
-            db.flush()
-            
-            # Add super_admin role
-            super_admin_role = db.query(Role).filter(Role.name == "super_admin").first()
-            if super_admin_role:
-                admin_user.roles.append(super_admin_role)
-            
-            users_created += 1
         
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": "User system initialized successfully",
-            "permissions_created": permissions_created,
-            "roles_created": roles_created,
-            "users_created": users_created,
-            "initiated_by": current_user.username
-        }
-        
+    except subprocess.SubprocessError as e:
+        logger.error(f"Failed to run user initialization script: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run user initialization script: {str(e)}"
+        )
     except Exception as e:
-        db.rollback()
         logger.error(f"User system initialization failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"User system initialization failed: {str(e)}"
         )
 
-@router.get("/database-status", response_model=Dict[str, Any])
-def get_database_status(
+@router.post("/add-missing-permissions", response_model=Dict[str, Any])
+def add_missing_permissions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("admin.database.read"))
+    current_user: User = Depends(require_permission("admin.system.config"))
 ):
     """
-    Get Database Status - Check table existence and record counts
+    Add Missing Permissions - Add new permissions to existing user types
+    
+    This endpoint adds any new permissions that have been defined but are
+    missing from existing user types. Useful when new features are added.
     """
     try:
-        from sqlalchemy import text
+        logger.info(f"Adding missing permissions initiated by: {current_user.username}")
         
-        # Check if main tables exist and get counts
-        tables_status = {}
+        from app.models.user_type import UserType
+        from datetime import datetime
         
-        main_tables = [
-            "users", "regions", "offices", "user_types", 
-            "permissions", "roles", "user_roles", "role_permissions",
-            "persons", "audit_logs"
+        # Define new permissions that might be missing
+        new_permissions = [
+            # Add any new permissions here as the system evolves
+            "admin.database.init",
+            "admin.database.reset", 
+            "admin.database.read",
+            "admin.system.initialize",
+            "admin.permission.manage",
+            "region.create",
+            "region.read",
+            "region.update", 
+            "region.delete",
+            "office.create",
+            "office.read",
+            "office.update",
+            "office.delete"
         ]
         
-        for table in main_tables:
-            try:
-                result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
-                count = result.scalar()
-                tables_status[table] = {"exists": True, "count": count}
-            except Exception:
-                tables_status[table] = {"exists": False, "count": 0}
+        # Get all user types
+        user_types = db.query(UserType).all()
         
-        # Test database connection
-        connection_ok = DatabaseManager.test_connection()
+        updates_made = []
+        
+        for user_type in user_types:
+            current_permissions = user_type.default_permissions or []
+            permissions_added = []
+            
+            # Add missing permissions based on user type
+            if user_type.id == "super_admin":
+                # Super admin gets all permissions
+                for permission in new_permissions:
+                    if permission not in current_permissions:
+                        current_permissions.append(permission)
+                        permissions_added.append(permission)
+            
+            elif user_type.id in ["national_help_desk", "provincial_help_desk"]:
+                # Help desk gets read permissions
+                read_permissions = [p for p in new_permissions if ".read" in p]
+                for permission in read_permissions:
+                    if permission not in current_permissions:
+                        current_permissions.append(permission)
+                        permissions_added.append(permission)
+            
+            elif user_type.id == "license_manager":
+                # License managers get region and office management
+                manager_permissions = [p for p in new_permissions if p.startswith(("region.", "office."))]
+                for permission in manager_permissions:
+                    if permission not in current_permissions:
+                        current_permissions.append(permission)
+                        permissions_added.append(permission)
+            
+            # Update the user type if permissions were added
+            if permissions_added:
+                user_type.default_permissions = current_permissions
+                user_type.updated_at = datetime.utcnow()
+                user_type.updated_by = current_user.username
+                updates_made.append({
+                    "user_type": user_type.id,
+                    "permissions_added": permissions_added
+                })
+        
+        db.commit()
         
         return {
             "status": "success",
-            "connection_ok": connection_ok,
-            "tables": tables_status,
-            "checked_by": current_user.username
+            "message": f"Updated {len(updates_made)} user types with missing permissions",
+            "updates_made": updates_made,
+            "initiated_by": current_user.username
         }
         
     except Exception as e:
-        logger.error(f"Database status check failed: {e}")
+        db.rollback()
+        logger.error(f"Adding missing permissions failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database status check failed: {str(e)}"
+            detail=f"Adding missing permissions failed: {str(e)}"
         ) 
