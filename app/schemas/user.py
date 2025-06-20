@@ -180,43 +180,103 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     full_name: str = ""
-    display_name: Optional[str]
-    phone_number: Optional[str]
-    employee_id: Optional[str]
-    department: Optional[str]
+    display_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    employee_id: Optional[str] = None
+    department: Optional[str] = None
     country_code: str
-    province: Optional[str]
-    region: Optional[str]
-    office_location: Optional[str]
+    province: Optional[str] = None
+    region: Optional[str] = None
+    office_location: Optional[str] = None
     status: UserStatus
     is_active: bool
-    is_superuser: bool
-    is_verified: bool
-    language: str
-    timezone: str
-    last_login_at: Optional[datetime]
+    is_superuser: bool = False
+    is_verified: bool = False
+    language: str = "en"
+    timezone: str = "Africa/Johannesburg"
+    last_login_at: Optional[datetime] = None
     created_at: datetime
-    updated_at: datetime
-    roles: List["RoleResponse"] = []
+    updated_at: Optional[datetime] = None
     
+    # New permission system fields
+    user_type_id: Optional[str] = None
+    assigned_province: Optional[str] = None
+    permission_overrides: Optional[List[str]] = None
+
     @model_validator(mode='before')
     @classmethod
-    def generate_full_name(cls, values):
-        """Generate full_name from first_name and last_name if not provided"""
-        if isinstance(values, dict):
-            if 'full_name' not in values or not values['full_name']:
-                first_name = values.get('first_name', '')
-                last_name = values.get('last_name', '')
-                values['full_name'] = f"{first_name} {last_name}".strip() if first_name or last_name else "Unknown User"
-        return values
-    
+    def convert_user_model(cls, values):
+        """Convert User model to response format"""
+        if hasattr(values, '__dict__'):
+            # Convert SQLAlchemy model to dict
+            data = {}
+            for key, value in values.__dict__.items():
+                if not key.startswith('_'):
+                    data[key] = value
+        else:
+            data = values if isinstance(values, dict) else {}
+        
+        # Handle full_name - ensure it's never None
+        if 'full_name' not in data or not data.get('full_name'):
+            first_name = data.get('first_name') or ''
+            last_name = data.get('last_name') or ''
+            data['full_name'] = f"{first_name} {last_name}".strip() or "Unknown User"
+        
+        # Convert status to lowercase for enum
+        if 'status' in data and data['status']:
+            data['status'] = data['status'].lower()
+        else:
+            data['status'] = 'active'  # Default status
+            
+        # Ensure required string fields are not None
+        string_fields = ['first_name', 'last_name', 'country_code', 'language', 'timezone']
+        for field in string_fields:
+            if field not in data or data[field] is None:
+                if field == 'first_name':
+                    data[field] = ''
+                elif field == 'last_name':
+                    data[field] = ''
+                elif field == 'country_code':
+                    data[field] = 'ZA'
+                elif field == 'language':
+                    data[field] = 'en'
+                elif field == 'timezone':
+                    data[field] = 'Africa/Johannesburg'
+        
+        # Ensure boolean fields have defaults
+        boolean_fields = ['is_active', 'is_superuser', 'is_verified']
+        for field in boolean_fields:
+            if field not in data or data[field] is None:
+                data[field] = False
+        
+        # Handle assigned_province mapping
+        if 'assigned_province' not in data and 'province' in data:
+            data['assigned_province'] = data['province']
+            
+        # Ensure datetime fields are handled properly
+        datetime_fields = ['created_at', 'updated_at', 'last_login_at']
+        for field in datetime_fields:
+            if field in data and data[field] is None and field == 'created_at':
+                # created_at should never be None, use current time if missing
+                from datetime import datetime as dt
+                data[field] = dt.utcnow()
+        
+        return data
+
     @field_validator('id', mode='before')
     @classmethod
     def convert_uuid_to_str(cls, v):
-        if isinstance(v, uuid.UUID):
-            return str(v)
+        """Convert UUID to string"""
+        return str(v) if v else None
+
+    @field_validator('status', mode='before')
+    @classmethod
+    def convert_status(cls, v):
+        """Convert status to lowercase"""
+        if isinstance(v, str):
+            return v.lower()
         return v
-    
+
     class Config:
         from_attributes = True
         json_schema_extra = {
@@ -229,13 +289,8 @@ class UserResponse(BaseModel):
                 "full_name": "John Smith",
                 "status": "active",
                 "is_active": True,
-                "roles": [
-                    {
-                        "id": "role-id",
-                        "name": "operator",
-                        "display_name": "License Operator"
-                    }
-                ]
+                "user_type_id": "license_operator",
+                "assigned_province": "WC"
             }
         }
 

@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
+# Import UserResponse from user.py to avoid duplication
+from .user import UserResponse
+
 # Login Request/Response
 class LoginRequest(BaseModel):
     """Login request schema"""
@@ -19,35 +22,6 @@ class LoginRequest(BaseModel):
             "example": {
                 "username": "admin",
                 "password": "password123"
-            }
-        }
-
-class UserResponse(BaseModel):
-    """User information response"""
-    id: str = Field(..., description="User UUID")
-    username: str = Field(..., description="Username")
-    email: Optional[str] = Field(None, description="Email address")
-    first_name: Optional[str] = Field(None, description="First name")
-    last_name: Optional[str] = Field(None, description="Last name")
-    is_active: bool = Field(..., description="Whether user is active")
-    is_superuser: bool = Field(..., description="Whether user is superuser")
-    roles: List[str] = Field(default=[], description="User roles")
-    permissions: List[str] = Field(default=[], description="User permissions")
-    last_login_at: Optional[datetime] = Field(None, description="Last login timestamp")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "550e8400-e29b-41d4-a716-446655440000",
-                "username": "admin",
-                "email": "admin@example.com",
-                "first_name": "Admin",
-                "last_name": "User",
-                "is_active": True,
-                "is_superuser": True,
-                "roles": ["admin"],
-                "permissions": ["person:read", "person:create"],
-                "last_login_at": "2024-01-01T10:00:00Z"
             }
         }
 
@@ -72,8 +46,8 @@ class LoginResponse(BaseModel):
                     "last_name": "User",
                     "is_active": True,
                     "is_superuser": True,
-                    "roles": ["admin"],
-                    "permissions": ["person:read", "person:create"]
+                    "user_type_id": "super_admin",
+                    "assigned_province": "WC"
                 }
             }
         }

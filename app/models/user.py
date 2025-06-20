@@ -233,21 +233,17 @@ class User(BaseModel):
     
     @property
     def roles(self):
-        """LEGACY PROPERTY - REMOVED"""
-        raise NotImplementedError(
-            "Legacy roles property removed. Use new permission system.\n"
-            "Access region_assignments and office_assignments instead."
-        )
+        """LEGACY PROPERTY - Returns empty list for backward compatibility"""
+        # Temporarily return empty list to prevent schema errors during migration
+        # TODO: Remove this property completely after frontend migration
+        return []
     
     @property 
     def permissions(self):
-        """LEGACY PROPERTY - REMOVED"""
-        raise NotImplementedError(
-            "Legacy permissions property removed. Use PermissionEngine.get_user_permissions() instead.\n"
-            "from app.core.permission_engine import PermissionEngine\n"
-            "engine = PermissionEngine()\n"
-            "permissions = await engine.get_user_permissions(user_id)"
-        )
+        """LEGACY PROPERTY - Returns empty list for backward compatibility"""
+        # Temporarily return empty list to prevent schema errors during migration  
+        # TODO: Remove this property completely after frontend migration
+        return []
     
     def can_access_province(self, province_code: str) -> bool:
         """Check if user can access specific province using new permission system"""
