@@ -191,6 +191,24 @@ def create_default_permissions():
             "description": "Configure system settings",
             "category": "administration"
         },
+        {
+            "name": "admin.database.reset",
+            "display_name": "Reset Database",
+            "description": "Drop and recreate all database tables",
+            "category": "administration"
+        },
+        {
+            "name": "admin.database.read",
+            "display_name": "Database Status",
+            "description": "View database status and table information",
+            "category": "administration"
+        },
+        {
+            "name": "admin.system.initialize",
+            "display_name": "Initialize System",
+            "description": "Initialize user system with default data",
+            "category": "administration"
+        },
         
         # Reporting Permissions
         {
@@ -231,7 +249,7 @@ def create_default_roles():
                 "finance.payment.create", "finance.payment.read", "finance.refund.process",
                 "test.schedule", "test.conduct", "test.results.update",
                 "admin.user.create", "admin.user.read", "admin.user.update", "admin.user.delete",
-                "admin.role.manage", "admin.system.config",
+                "admin.role.manage", "admin.system.config", "admin.database.reset", "admin.database.read", "admin.system.initialize",
                 "report.license.read", "report.financial.read", "report.operational.read"
             ]
         },
